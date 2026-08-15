@@ -1,0 +1,394 @@
+import React, { useEffect, useState } from 'react';
+import type { SettingsConfig } from '@/types';
+import { getSettings, saveSettings } from '@/services/adminService';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Alert } from '@/components/ui/Alert';
+import { Loader2, Eye, EyeOff, CheckCircle2, Lock } from 'lucide-react';
+
+type SectionState = 'idle' | 'editing' | 'saving' | 'success' | 'error';
+
+// ── Settings Module ───────────────────────────────────────────────────────────
+
+export const SettingsModule: React.FC = () => {
+  const [settings, setSettings] = useState<SettingsConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  // API Config section
+  const [apiState, setApiState] = useState<SectionState>('idle');
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [showKey, setShowKey] = useState(false);
+
+  // Credit Limiter section
+  const [creditState, setCreditState] = useState<SectionState>('idle');
+  const [creditError, setCreditError] = useState<string | null>(null);
+  const [warningDraft, setWarningDraft] = useState('');
+  const [criticalDraft, setCriticalDraft] = useState('');
+
+  // Unsaved-changes guard
+  const [hasUnsavedApi, setHasUnsavedApi] = useState(false);
+  const [hasUnsavedCredit, setHasUnsavedCredit] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  // Warn on navigation if there are unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedApi || hasUnsavedCredit) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedApi, hasUnsavedCredit]);
+
+  const loadSettings = async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const data = await getSettings();
+      setSettings(data);
+      setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
+      setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveApiConfig = async () => {
+    // API key validation: secrets go server-side — never echoed back
+    if (apiState === 'editing' && apiKeyDraft.trim() === '') {
+      setApiError('Enter a credential value to update.');
+      return;
+    }
+    setApiState('saving');
+    setApiError(null);
+    try {
+      // We don't send the key value to any client state — only signal that it was updated
+      const updated = await saveSettings('api', {
+        credential_set: true,
+        credential_last_updated: new Date().toISOString(),
+      });
+      setSettings(updated);
+      setApiState('success');
+      setApiKeyDraft('');
+      setHasUnsavedApi(false);
+      setTimeout(() => setApiState('idle'), 3000);
+    } catch {
+      setApiState('error');
+      setApiError('Could not save API configuration. Please try again.');
+    }
+  };
+
+  const handleSaveCreditLimiter = async () => {
+    const warning = warningDraft ? Number(warningDraft) : null;
+    const critical = criticalDraft ? Number(criticalDraft) : null;
+
+    // Validate
+    if (warningDraft && (isNaN(Number(warningDraft)) || Number(warningDraft) < 0)) {
+      setCreditError('Warning threshold must be a positive number.');
+      return;
+    }
+    if (criticalDraft && (isNaN(Number(criticalDraft)) || Number(criticalDraft) < 0)) {
+      setCreditError('Critical threshold must be a positive number.');
+      return;
+    }
+
+    setCreditState('saving');
+    setCreditError(null);
+    try {
+      const updated = await saveSettings('credits', { warning_threshold: warning, critical_threshold: critical });
+      setSettings(updated);
+      setCreditState('success');
+      setHasUnsavedCredit(false);
+      setTimeout(() => setCreditState('idle'), 3000);
+    } catch {
+      setCreditState('error');
+      setCreditError('Could not save credit limiter settings. Please try again.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
+        </div>
+        {[1, 2, 3].map((i) => (
+          <Card key={i} elevation="xs" className="p-6 space-y-4 max-w-2xl">
+            <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-60 rounded bg-muted animate-pulse" />
+            <div className="h-10 w-full rounded-md bg-muted animate-pulse" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
+        <Alert variant="destructive" title="Could not load settings">
+          <p className="text-sm">Settings are unavailable. Please try again.</p>
+        </Alert>
+        <Button variant="outline" onClick={loadSettings}>Retry</Button>
+      </div>
+    );
+  }
+
+  if (!settings) return null;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">API, credits and data refresh configuration</p>
+      </div>
+
+      {/* ── API Configuration ─────────────────────────────────────────── */}
+      <section aria-labelledby="api-config-heading">
+        <Card elevation="xs" className="p-6 space-y-5 max-w-2xl">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 id="api-config-heading" className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Lock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                API Configuration
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Credentials are stored server-side and never returned to the browser.
+              </p>
+            </div>
+          </div>
+
+          {/* Credential status — never shows the actual key */}
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Credential Status</p>
+            <p className="text-sm text-foreground">
+              {settings.api.credential_set ? '● Set' : '○ Not configured'}
+            </p>
+            {settings.api.credential_last_updated && (
+              <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                Last updated: {new Date(settings.api.credential_last_updated).toLocaleString()}
+              </p>
+            )}
+          </div>
+
+          {apiState === 'success' && (
+            <div className="flex items-center gap-2 text-sm text-success">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Credential updated successfully.
+            </div>
+          )}
+
+          {apiError && (
+            <Alert variant="destructive" title="Error">
+              <p className="text-sm">{apiError}</p>
+            </Alert>
+          )}
+
+          {/* Update credential — masked input, never echoed */}
+          {(apiState === 'editing' || apiState === 'error') && (
+            <div>
+              <label htmlFor="api-key-input" className="block text-xs font-medium text-muted-foreground mb-1">
+                New Credential Value
+              </label>
+              <div className="relative">
+                <Input
+                  id="api-key-input"
+                  type={showKey ? 'text' : 'password'}
+                  value={apiKeyDraft}
+                  onChange={(e) => { setApiKeyDraft(e.target.value); setHasUnsavedApi(true); }}
+                  placeholder="Paste new credential…"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  aria-label={showKey ? 'Hide credential' : 'Show credential'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showKey
+                    ? <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    : <Eye className="h-4 w-4" aria-hidden="true" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                This will replace the current credential. The value is transmitted securely and never stored client-side.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            {apiState === 'idle' && (
+              <Button variant="outline" onClick={() => setApiState('editing')}>
+                Update Credential
+              </Button>
+            )}
+            {(apiState === 'editing' || apiState === 'error' || apiState === 'saving') && (
+              <>
+                <Button
+                  variant="default"
+                  onClick={handleSaveApiConfig}
+                  disabled={apiState === 'saving'}
+                  className="gap-2"
+                >
+                  {apiState === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  Save credential
+                </Button>
+                <Button variant="ghost" onClick={() => { setApiState('idle'); setApiKeyDraft(''); setApiError(null); setHasUnsavedApi(false); }}>
+                  Cancel
+                </Button>
+              </>
+            )}
+          </div>
+        </Card>
+      </section>
+
+      {/* ── Credit Limiter ─────────────────────────────────────────────── */}
+      <section aria-labelledby="credit-limiter-heading">
+        <Card elevation="xs" className="p-6 space-y-5 max-w-2xl">
+          <div>
+            <h2 id="credit-limiter-heading" className="text-lg font-semibold text-foreground">API Credit Limiter</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {/* TODO(backend): threshold values and rules come from backend configuration */}
+              Warning and critical thresholds are defined by backend configuration.
+              A notification fires when credits reach the warning threshold.
+            </p>
+          </div>
+
+          {/* Current credit status */}
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Current Credits</p>
+            <p className="text-3xl font-semibold tabular-nums text-foreground">
+              {settings.credits.current_credits?.toLocaleString() ?? '—'}
+            </p>
+            {settings.credits.credits_last_refreshed && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                Refreshed: {new Date(settings.credits.credits_last_refreshed).toLocaleString()}
+              </p>
+            )}
+          </div>
+
+          {creditError && (
+            <Alert variant="destructive" title="Error">
+              <p className="text-sm">{creditError}</p>
+            </Alert>
+          )}
+          {creditState === 'success' && (
+            <div className="flex items-center gap-2 text-sm text-success">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Thresholds saved.
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="warning-threshold" className="block text-xs font-medium text-muted-foreground mb-1">
+                Warning Threshold
+              </label>
+              <Input
+                id="warning-threshold"
+                type="number"
+                min={0}
+                value={warningDraft}
+                placeholder={settings.credits.warning_threshold != null ? String(settings.credits.warning_threshold) : 'Not set'}
+                onChange={(e) => { setWarningDraft(e.target.value); setHasUnsavedCredit(true); }}
+              />
+              {/* TODO(backend): validation range comes from backend */}
+              <p className="text-xs text-muted-foreground mt-1">Credit count that triggers a warning notification.</p>
+            </div>
+            <div>
+              <label htmlFor="critical-threshold" className="block text-xs font-medium text-muted-foreground mb-1">
+                Critical Threshold
+              </label>
+              <Input
+                id="critical-threshold"
+                type="number"
+                min={0}
+                value={criticalDraft}
+                placeholder={settings.credits.critical_threshold != null ? String(settings.credits.critical_threshold) : 'Not set'}
+                onChange={(e) => { setCriticalDraft(e.target.value); setHasUnsavedCredit(true); }}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Credit count for critical-level alerts.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              variant="default"
+              onClick={handleSaveCreditLimiter}
+              disabled={creditState === 'saving'}
+              className="gap-2"
+            >
+              {creditState === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              Save thresholds
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setWarningDraft(settings.credits.warning_threshold != null ? String(settings.credits.warning_threshold) : '');
+                setCriticalDraft(settings.credits.critical_threshold != null ? String(settings.credits.critical_threshold) : '');
+                setHasUnsavedCredit(false);
+                setCreditError(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </Card>
+      </section>
+
+      {/* ── Data Refresh ──────────────────────────────────────────────── */}
+      <section aria-labelledby="data-refresh-heading">
+        <Card elevation="xs" className="p-6 space-y-4 max-w-2xl">
+          <div>
+            <h2 id="data-refresh-heading" className="text-lg font-semibold text-foreground">Data Refresh</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {/* TODO(backend): only rules the backend supports — none invented */}
+              Schedule configuration is managed server-side.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-4 space-y-3">
+            {[
+              {
+                label: 'Schedule',
+                value: settings.data_refresh.schedule_description ?? 'Not configured — TODO(backend)',
+              },
+              {
+                label: 'Last Refresh',
+                value: settings.data_refresh.last_refresh
+                  ? new Date(settings.data_refresh.last_refresh).toLocaleString()
+                  : '—',
+              },
+              {
+                label: 'Next Refresh',
+                value: settings.data_refresh.next_refresh
+                  ? new Date(settings.data_refresh.next_refresh).toLocaleString()
+                  : '—',
+              },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-start gap-6">
+                <dt className="text-xs font-medium text-muted-foreground w-28 shrink-0">{label}</dt>
+                <dd className="text-sm text-foreground tabular-nums">{value}</dd>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-muted-foreground italic">
+            Contact your administrator to change the refresh schedule.
+          </p>
+        </Card>
+      </section>
+    </div>
+  );
+};

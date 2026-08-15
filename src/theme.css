@@ -1,0 +1,162 @@
+@import "@fontsource/geist-sans";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 
+  Reacher DESIGN SYSTEM TOKENS
+  Figma Source Mappings recorded per §3.1
+*/
+
+:root {
+  /* Source: ⚙️ Theme / background -> slate-0 */
+  --background: 0 0% 100%;
+  /* Source: ⚙️ Theme / foreground -> slate-900 */
+  --foreground: 222.2 84% 4.9%;
+
+  /* Source: ⚙️ Theme / card -> white */
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+
+  /* Source: ⚙️ Theme / popover -> white */
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+
+  /* Source: ⚙️ Primary Color -> slate-900 enterprise neutral primary */
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+
+  /* Source: ⚙️ Theme / secondary -> slate-100 */
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  /* Source: ⚙️ Theme / muted -> slate-100 */
+  --muted: 210 40% 96.1%;
+  /* Source: ⚙️ Theme / muted-foreground -> slate-500 */
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  /* Source: ⚙️ Theme / accent -> slate-100 */
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  /* Source: ⚙️ Theme / destructive -> red-600 */
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  /* Source: Resolved Theme / success (chosen from theme per §3.1) -> emerald-600 */
+  --success: 142.1 76.2% 36.3%;
+  --success-foreground: 355.7 100% 97.3%;
+
+  /* Source: Resolved Theme / warning (derived from amber per §4.1 status-only rule) */
+  --warning: 45 93% 47%;   /* amber-500 */
+  --warning-foreground: 26 83% 14%;  /* amber-950 */
+
+  /* Source: ⚙️ Theme / border -> slate-200 */
+  --border: 214.3 31.8% 91.4%;
+  /* Source: ⚙️ Theme / input -> slate-200 */
+  --input: 214.3 31.8% 91.4%;
+  /* Source: ⚙️ Theme / ring -> slate-400 (#A1A1A180) */
+  --ring: 215 16% 47%;
+
+  /* Radius Tokens (§3.3) */
+  --radius-md: 8px;
+  /* Inputs & Buttons */
+  --radius-lg: 10px;
+  /* Inset panels & Popovers */
+  --radius-xl: 14px;
+  /* Cards */
+  --radius-2xl: 16px;
+  /* Dialogs */
+  --radius-full: 9999px;
+  /* Badges */
+
+  /* Elevation Tokens (§4.3) */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.dark {
+  /* Source: ⚙️ Theme / dark-background -> slate-950 */
+  --background: 222.2 84% 4.9%;
+  /* Source: ⚙️ Theme / dark-foreground -> slate-50 */
+  --foreground: 210 40% 98%;
+
+  /* Source: ⚙️ Theme / dark-card -> slate-900 */
+  --card: 222.2 84% 8%;
+  --card-foreground: 210 40% 98%;
+
+  /* Source: ⚙️ Theme / dark-popover -> slate-900 */
+  --popover: 222.2 84% 8%;
+  --popover-foreground: 210 40% 98%;
+
+  /* Source: ⚙️ Primary Color / dark-primary -> slate-50 */
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+
+  /* Source: ⚙️ Theme / dark-secondary -> slate-800 */
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+
+  /* Source: ⚙️ Theme / dark-muted -> slate-800 */
+  --muted: 217.2 32.6% 14.5%;
+  /* Source: ⚙️ Theme / dark-muted-foreground -> slate-400 */
+  --muted-foreground: 215 20.2% 65.1%;
+
+  /* Source: ⚙️ Theme / dark-accent -> slate-800 */
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+
+  /* Source: ⚙️ Theme / dark-destructive -> red-900 */
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  /* Source: Resolved Theme / dark-success -> emerald-500 */
+  --success: 142.1 70.6% 45.3%;
+  --success-foreground: 144 100% 97%;
+
+  /* Source: Resolved Theme / dark-warning -> amber-400 */
+  --warning: 43 96% 56%;   /* amber-400 */
+  --warning-foreground: 26 83% 14%;  /* amber-950 */
+
+  /* Source: ⚙️ Theme / dark-border -> slate-800 */
+  --border: 217.2 32.6% 17.5%;
+  /* Source: ⚙️ Theme / dark-input -> slate-800 */
+  --input: 217.2 32.6% 17.5%;
+  /* Source: ⚙️ Theme / dark-ring -> slate-400 */
+  --ring: 215 20.2% 65.1%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased selection:bg-muted selection:text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Focus ring effect per §3.3: #A1A1A180 ring + offset ring */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A1A1A1]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}
+
+.focus-ring-destructive {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
