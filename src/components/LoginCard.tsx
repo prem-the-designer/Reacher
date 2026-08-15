@@ -18,12 +18,12 @@ interface LoginCardProps {
 export const LoginCard: React.FC<LoginCardProps> = ({
   authState,
   onAuthStateChange,
-  onLoginSuccess,
+  // onLoginSuccess intentionally unused
   onSignOut,
   unregisteredEmail = 'unregistered.user@company.com',
   // onSimulateState intentionally unused — QA fixture section commented out
 }) => {
-  const [attemptEmail, setAttemptEmail] = useState(unregisteredEmail);
+  const [attemptEmail] = useState(unregisteredEmail);
 
   // Trigger Google SSO authentication exchange
   const handleGoogleSignIn = async () => {
@@ -110,7 +110,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({
         )}
 
         {authState === 'pending_approval' && (
-          <Alert variant="warning">
+          <Alert variant="default">
             Your account <span className="font-semibold">{attemptEmail}</span> has been created but is awaiting Administrator approval. You will be able to access the portal once activated.
           </Alert>
         )}
