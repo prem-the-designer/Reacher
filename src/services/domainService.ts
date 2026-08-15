@@ -64,27 +64,28 @@ export async function searchMasterDatabase(
   const { data: manualData, error: manualError } = await supabase
     .from('manual_reach_values')
     .select('*')
-    .eq('domain_url', normalized)
-    .single();
+    .ilike('domain_url', `%${normalized}%`)
+    .limit(1);
 
-  if (manualError && manualError.code !== 'PGRST116') {
+  if (manualError) {
     console.error('Supabase error on manual_reach_values:', manualError);
     return { record: null, error: 'database_unavailable' };
   }
 
-  if (manualData) {
+  if (manualData && manualData.length > 0) {
+    const record = manualData[0];
     return { 
       record: {
-        id: manualData.id || normalized,
-        domain_name: manualData.domain_url,
-        reach_value: manualData.reach_value,
+        id: record.id || normalized,
+        domain_name: record.domain_url,
+        reach_value: record.reach_value,
         provider: 'Manual DBO',
-        country: manualData.country,
-        media_type: manualData.media_type,
-        publication: manualData.outlet_name,
+        country: record.country,
+        media_type: record.media_type,
+        publication: record.outlet_name,
         granularity: null,
         data_source: 'Master Database',
-        last_updated: manualData.updated_date
+        last_updated: record.updated_date
       }, 
       error: null 
     };
@@ -94,27 +95,28 @@ export async function searchMasterDatabase(
   const { data: swData, error: swError } = await supabase
     .from('similarweb_reach')
     .select('*')
-    .eq('domain_url', normalized)
-    .single();
+    .ilike('domain_url', `%${normalized}%`)
+    .limit(1);
 
-  if (swError && swError.code !== 'PGRST116') {
+  if (swError) {
     console.error('Supabase error on similarweb_reach:', swError);
     return { record: null, error: 'database_unavailable' };
   }
 
-  if (swData) {
+  if (swData && swData.length > 0) {
+    const record = swData[0];
     return { 
       record: {
-        id: swData.id || normalized,
-        domain_name: swData.domain_url,
-        reach_value: swData.reach_value,
+        id: record.id || normalized,
+        domain_name: record.domain_url,
+        reach_value: record.reach_value,
         provider: 'Similarweb',
         country: null,
         media_type: null,
         publication: null,
         granularity: null,
         data_source: 'API Fetch',
-        last_updated: swData.updated_date
+        last_updated: record.updated_date
       }, 
       error: null 
     };
@@ -125,6 +127,46 @@ export async function searchMasterDatabase(
 }
 
 /**
+ * Simulates the Exact Structure of the Similarweb "Total Traffic & Engagement" API
+ */
+async function fakeSimilarwebApi(domain: string) {
+  // Simulate network latency
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  // Generate deterministic reach value for the domain based on string hash
+  let hash = 0;
+  for (let i = 0; i < domain.length; i++) {
+    hash = (hash << 5) - hash + domain.charCodeAt(i);
+    hash |= 0;
+  }
+  const generatedReach = Math.abs(hash % 9000000) + 1250000;
+
+  // Exact JSON structure returned by Similarweb V1 API for Visits
+  return {
+    meta: {
+      request: {
+        domain: domain,
+        start_date: "2023-09-01",
+        end_date: "2023-09-30",
+        country: "world",
+        granularity: "monthly",
+        main_domain_only: false,
+        show_verified: false,
+        format: "json"
+      },
+      status: "Success",
+      last_updated: new Date().toISOString()
+    },
+    visits: [
+      {
+        date: "2023-09-01",
+        visits: generatedReach
+      }
+    ]
+  };
+}
+
+/**
  * Fetch Reach Value from API for NEW domains only (§2, §6, §11)
  * Triggered strictly when Analyst clicks "Get Reach".
  * Returns Reach Value + "API Fetch" badge + null (renders as '—') for 5 metadata fields.
@@ -132,8 +174,6 @@ export async function searchMasterDatabase(
 export async function fetchNewDomainReach(
   normalizedDomain: string
 ): Promise<{ record: DomainRecord | null; error: ErrorType | null }> {
-  // Simulate retrieval latency
-  await new Promise((resolve) => setTimeout(resolve, 800));
 
   // Handle deterministic failure fixtures (§11)
   if (normalizedDomain === 'rate-limit.test') return { record: null, error: 'rate_limited' };
@@ -141,38 +181,63 @@ export async function fetchNewDomainReach(
   if (normalizedDomain === 'offline.test') return { record: null, error: 'network_failure' };
   if (normalizedDomain === 'domain-unavailable.test') return { record: null, error: 'domain_unavailable' };
 
-  // Generate deterministic reach value for new domain based on string hash
-  let hash = 0;
-  for (let i = 0; i < normalizedDomain.length; i++) {
-    hash = (hash << 5) - hash + normalizedDomain.charCodeAt(i);
-    hash |= 0;
-  }
-  const generatedReach = Math.abs(hash % 9000000) + 1250000;
+  // Call the fake Similarweb API
+  const apiResponse = await fakeSimilarwebApi(normalizedDomain);
+  
+  // Extract reach value from the Similarweb API JSON structure
+  const fetchedReach = apiResponse.visits[0].visits;
 
   const row = {
-    domain_name: normalizedDomain,
-    reach_value: generatedReach,
-    data_source: 'API Fetch',
+    domain_url: normalizedDomain,
+    reach_value: fetchedReach,
   };
 
-  const { error } = await supabase.from('domains').insert([row]);
+  // Insert into the new similarweb_reach table instead of the deprecated domains table
+  // Check if it already exists to handle "refresh" action
+  const { data: existingData } = await supabase
+    .from('similarweb_reach')
+    .select('id')
+    .eq('domain_url', normalizedDomain)
+    .single();
+
+  let data, error;
+  if (existingData) {
+    // Update existing
+    const res = await supabase
+      .from('similarweb_reach')
+      .update({ reach_value: fetchedReach, updated_date: new Date().toISOString() })
+      .eq('id', existingData.id)
+      .select()
+      .single();
+    data = res.data;
+    error = res.error;
+  } else {
+    // Insert new
+    const res = await supabase
+      .from('similarweb_reach')
+      .insert([row])
+      .select()
+      .single();
+    data = res.data;
+    error = res.error;
+  }
   
   if (error) {
-    console.error('Failed to insert domain:', error);
+    console.error('Failed to insert into similarweb_reach:', error);
     return { record: null, error: 'database_unavailable' };
   }
 
   const newRecord: DomainRecord = {
-    id: normalizedDomain,
+    id: data.id,
     domain_name: normalizedDomain,
-    reach_value: generatedReach,
-    provider: null,
+    reach_value: fetchedReach,
+    provider: 'Similarweb',
     country: null,
     media_type: null,
     publication: null,
     granularity: null,
     data_source: 'API Fetch',
-    last_updated: new Date().toISOString(),
+    last_updated: data.updated_date,
   };
 
   return { record: newRecord, error: null };
