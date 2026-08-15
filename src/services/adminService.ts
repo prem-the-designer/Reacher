@@ -204,9 +204,11 @@ export async function addUser(
   const { error } = await supabase.auth.signInWithOtp({
     email: data.email,
     options: {
+      emailRedirectTo: window.location.origin,
       data: {
         name: data.name,
         role: data.role,
+        status: 'active',
       }
     }
   });
@@ -223,7 +225,7 @@ export async function addUser(
     name: data.name,
     email: data.email,
     role: data.role,
-    status: 'pending',
+    status: 'active', // Automatically active since admin invited them
     created_at: new Date().toISOString(),
     last_login: null,
   };
