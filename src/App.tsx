@@ -3,17 +3,14 @@ import { AuthState, User } from '@/types';
 import { Header } from '@/components/Header';
 import { LoginCard } from '@/components/LoginCard';
 import { SearchDomain } from '@/components/SearchDomain';
-import { QAToolbar } from '@/components/QAToolbar';
 import { AdminShell } from '@/components/admin/AdminShell';
-import { MOCK_ANALYST_USER, MOCK_NON_ANALYST_USER, MOCK_ADMIN_USER, getUserProfile, signOut as supabaseSignOut } from '@/services/authService';
+import { getUserProfile, signOut as supabaseSignOut } from '@/services/authService';
 import { supabase } from '@/lib/supabase';
 
 export function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [authState, setAuthState] = useState<AuthState>('default');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isQAPanelOpen, setIsQAPanelOpen] = useState(false);
-  const [fixtureDomainToSearch, setFixtureDomainToSearch] = useState<string | null>(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -97,7 +94,6 @@ export function App() {
   const handleSignOutLocally = () => {
     setCurrentUser(null);
     setAuthState('default');
-    setFixtureDomainToSearch(null);
   };
 
   const handleSignOut = async () => {
@@ -105,26 +101,7 @@ export function App() {
     handleSignOutLocally();
   };
 
-  const handleSelectAuthState = (state: AuthState) => {
-    setAuthState(state);
-    if (state === 'success_analyst') {
-      setCurrentUser(MOCK_ANALYST_USER);
-    } else if (state === 'success_admin') {
-      setCurrentUser(MOCK_ADMIN_USER);
-    } else if (state === 'forbidden_non_analyst') {
-      setCurrentUser(MOCK_NON_ANALYST_USER);
-    } else {
-      setCurrentUser(null);
-    }
-  };
 
-  const handleTestSearchFixture = (domain: string) => {
-    if (!currentUser || currentUser.role !== 'analyst') {
-      setCurrentUser(MOCK_ANALYST_USER);
-      setAuthState('success_analyst');
-    }
-    setFixtureDomainToSearch(domain);
-  };
 
   // ── Admin Portal ────────────────────────────────────────────────────────────
   // Admin users get the full Admin Shell — no analyst chrome
@@ -147,7 +124,6 @@ export function App() {
         onSignOut={handleSignOut}
         darkMode={darkMode}
         onToggleDarkMode={() => setDarkMode(!darkMode)}
-        onOpenQAPanel={() => setIsQAPanelOpen(true)}
       />
 
       <main className="flex-1 flex flex-col">
@@ -157,19 +133,9 @@ export function App() {
             onAuthStateChange={setAuthState}
             onLoginSuccess={handleLoginSuccess}
             onSignOut={handleSignOut}
-            onSimulateState={(state) => {
-              setAuthState(state);
-              if (state === 'success_analyst') setCurrentUser(MOCK_ANALYST_USER);
-              else if (state === 'success_admin') setCurrentUser(MOCK_ADMIN_USER);
-              else if (state === 'forbidden_non_analyst') setCurrentUser(MOCK_NON_ANALYST_USER);
-              else setCurrentUser(null);
-            }}
           />
         ) : (
-          <SearchDomain
-            key={fixtureDomainToSearch || 'search-main'}
-            initialDomain={fixtureDomainToSearch || undefined}
-          />
+          <SearchDomain key="search-main" />
         )}
       </main>
 
@@ -179,15 +145,6 @@ export function App() {
           <span className="font-mono text-[11px]">Strict State Machine Architecture v1.0</span>
         </div>
       </footer>
-
-      <QAToolbar
-        isOpen={isQAPanelOpen}
-        onClose={() => setIsQAPanelOpen(false)}
-        currentAuthState={authState}
-        onSelectAuthState={handleSelectAuthState}
-        onTestSearchFixture={handleTestSearchFixture}
-        onResetDB={() => setFixtureDomainToSearch(null)}
-      />
     </div>
   );
 }
