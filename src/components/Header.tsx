@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '@/types';
-import { Moon, Sun, LogOut, Sparkles } from 'lucide-react';
+import { Moon, Sun, LogOut } from 'lucide-react';
 import { Button } from './ui/Button';
 
 interface HeaderProps {
