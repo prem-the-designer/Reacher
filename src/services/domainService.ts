@@ -31,20 +31,19 @@ export function isValidDomain(domain: string): boolean {
   return domainRegex.test(domain);
 }
 
-/**
- * Get list of known domains for autocomplete popover
- */
 export async function getAutocompleteDomains(query: string): Promise<string[]> {
   const normQuery = normalizeDomain(query);
   if (!normQuery) return [];
   
-  const { data } = await supabase
-    .from('domains')
-    .select('domain_name')
-    .ilike('domain_name', `%${normQuery}%`)
-    .limit(5);
+  const { data, error } = await supabase
+    .rpc('get_domain_suggestions', { search_query: normQuery, max_results: 5 });
     
-  return data ? data.map(d => d.domain_name) : [];
+  if (error) {
+    console.error('Error fetching autocomplete suggestions:', error);
+    return [];
+  }
+  
+  return data ? data.map((d: any) => d.domain_name) : [];
 }
 
 /**
@@ -61,35 +60,67 @@ export async function searchMasterDatabase(
     return { record: null, error: 'database_unavailable' };
   }
 
-  const { data, error } = await supabase
-    .from('domains')
+  // 1. Search manual_reach_values (Master Database)
+  const { data: manualData, error: manualError } = await supabase
+    .from('manual_reach_values')
     .select('*')
-    .eq('domain_name', normalized)
+    .eq('domain_url', normalized)
     .single();
 
-  if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows found"
-    console.error('Supabase error:', error);
+  if (manualError && manualError.code !== 'PGRST116') {
+    console.error('Supabase error on manual_reach_values:', manualError);
     return { record: null, error: 'database_unavailable' };
   }
 
-  if (data) {
+  if (manualData) {
     return { 
       record: {
-        id: data.domain_name,
-        domain_name: data.domain_name,
-        reach_value: data.reach_value,
-        provider: data.provider,
-        country: data.country,
-        media_type: data.media_type,
-        publication: data.publication,
-        granularity: data.granularity,
-        data_source: data.data_source,
-        last_updated: data.last_updated
+        id: manualData.id || normalized,
+        domain_name: manualData.domain_url,
+        reach_value: manualData.reach_value,
+        provider: 'Manual DBO',
+        country: manualData.country,
+        media_type: manualData.media_type,
+        publication: manualData.outlet_name,
+        granularity: null,
+        data_source: 'Master DB',
+        last_updated: manualData.updated_date
       }, 
       error: null 
     };
   }
 
+  // 2. If not in Master DB, search similarweb_reach
+  const { data: swData, error: swError } = await supabase
+    .from('similarweb_reach')
+    .select('*')
+    .eq('domain_url', normalized)
+    .single();
+
+  if (swError && swError.code !== 'PGRST116') {
+    console.error('Supabase error on similarweb_reach:', swError);
+    return { record: null, error: 'database_unavailable' };
+  }
+
+  if (swData) {
+    return { 
+      record: {
+        id: swData.id || normalized,
+        domain_name: swData.domain_url,
+        reach_value: swData.reach_value,
+        provider: 'Similarweb',
+        country: null,
+        media_type: null,
+        publication: null,
+        granularity: null,
+        data_source: 'Similarweb API',
+        last_updated: swData.updated_date
+      }, 
+      error: null 
+    };
+  }
+
+  // 3. Not found in either, return null
   return { record: null, error: null };
 }
 
