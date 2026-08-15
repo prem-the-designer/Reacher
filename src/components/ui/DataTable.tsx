@@ -149,7 +149,7 @@ function DataTableInner<T>(
       )}
 
       {/* Table wrapper — horizontal scroll for wide log tables on mobile */}
-      <div className="overflow-x-auto rounded-xl border border-border shadow-xs">
+      <div className="overflow-visible rounded-xl border border-border shadow-xs">
         <table className="w-full text-sm border-collapse" aria-busy={state === 'loading'}>
           {caption && <caption className="sr-only">{caption}</caption>}
 

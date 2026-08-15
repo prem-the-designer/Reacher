@@ -188,7 +188,7 @@ export async function getUsers(
     .range(start, start + pageSize - 1);
 
   if (error) {
-    console.error('Error fetching users:', error);
+    console.error('Error fetching users:', error.message || error);
     throw new Error('Failed to fetch users');
   }
 

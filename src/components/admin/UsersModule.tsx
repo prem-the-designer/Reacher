@@ -220,7 +220,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
         <div
           role="menu"
           aria-labelledby={`row-menu-${user.id}`}
-          className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-border bg-card shadow-md ring-1 ring-border overflow-hidden z-10"
+          className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-border bg-card shadow-md ring-1 ring-border overflow-hidden z-50"
         >
           <button
             type="button"
