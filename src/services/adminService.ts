@@ -199,9 +199,34 @@ export async function getUsers(
 }
 
 export async function addUser(
-  _data: { email: string; name: string; role: Role }
+  data: { email: string; name: string; role: Role }
 ): Promise<UserRecord> {
-  throw new Error('Users must sign in via Google OAuth first to request access.');
+  const { error } = await supabase.auth.signInWithOtp({
+    email: data.email,
+    options: {
+      data: {
+        name: data.name,
+        role: data.role,
+      }
+    }
+  });
+
+  if (error) {
+    console.error('Error inviting user:', error);
+    throw new Error(error.message || 'Failed to send invitation link');
+  }
+
+  // Return a synthetic record so the UI can optimistically display it,
+  // even though they haven't clicked the link yet.
+  return {
+    id: `pending-${Date.now()}`,
+    name: data.name,
+    email: data.email,
+    role: data.role,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    last_login: null,
+  };
 }
 
 export async function updateUser(
