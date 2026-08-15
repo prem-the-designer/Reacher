@@ -46,10 +46,10 @@ export async function getUserProfile(userId: string): Promise<{ role: Role, stat
     .from('profiles')
     .select('role, status, name')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
     
   if (error) {
-    console.error('Error fetching profile:', error);
+    console.error('Error fetching profile:', error.message || error);
     return null;
   }
   return data;

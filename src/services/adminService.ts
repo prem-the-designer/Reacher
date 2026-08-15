@@ -1,7 +1,7 @@
 /**
  * Admin API Service
  * The ONLY layer that knows about transport.
- * Swap the implementations here to connect the real backend — zero UI changes needed.
+ * Connected to Supabase backend.
  */
 
 import type {
@@ -23,60 +23,74 @@ import type {
   UserStatus,
 } from '@/types';
 
-import {
-  MOCK_USERS,
-  MOCK_REACH_REQUESTS,
-  MOCK_ACTIVITY_LOGS,
-  MOCK_REQUEST_LOGS,
-  MOCK_API_LOGS,
-  MOCK_ERROR_LOGS,
-  MOCK_IMPORT_JOBS,
-  MOCK_DASHBOARD_ACTIVITY,
-  MOCK_NOTIFICATIONS,
-  MOCK_SETTINGS,
-} from '@/mocks/adminMockData';
-
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// Runtime mutation stores
-let runtimeUsers = [...MOCK_USERS];
-let runtimeNotifications = [...MOCK_NOTIFICATIONS];
-let runtimeSettings = { ...MOCK_SETTINGS };
-let runtimeImportJobs = [...MOCK_IMPORT_JOBS];
+import { supabase } from '@/lib/supabase';
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
 export async function getDashboardCards(): Promise<DashboardCardData[]> {
-  await delay(400);
+  // 1. Pending requests count
+  const { count: pendingRequests } = await supabase
+    .from('reach_requests')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending');
 
-  const pendingRequests = MOCK_REACH_REQUESTS.filter((r) => r.status === 'pending').length;
-  const loggedInUsers = runtimeUsers.filter((u) => u.status === 'active' && u.last_login).length;
-  const lastImport = runtimeImportJobs[0] ?? null;
+  const { count: processingRequests } = await supabase
+    .from('reach_requests')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'processing');
+
+  // 2. Active users count
+  const { count: activeUsers } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'active');
+
+  const { count: loggedInUsers } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'active')
+    .not('last_login', 'is', null);
+
+  // 3. Settings (Credits)
+  const { data: creditsData } = await supabase
+    .from('app_settings')
+    .select('config')
+    .eq('section', 'credits')
+    .single();
+
+  const credits = creditsData?.config || {};
+
+  // 4. Last Import Job
+  const { data: lastImportData } = await supabase
+    .from('import_jobs')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   return [
     {
       id: 'card-requests',
       label: 'New Reach Value Requests',
-      value: pendingRequests,
-      context: `${MOCK_REACH_REQUESTS.filter((r) => r.status === 'processing').length} processing`,
+      value: pendingRequests ?? 0,
+      context: `${processingRequests ?? 0} processing`,
       linkModule: 'user-activity',
       status: 'loaded',
     },
     {
       id: 'card-users',
       label: 'Users Logged In',
-      value: loggedInUsers,
-      context: `${runtimeUsers.filter((u) => u.status === 'active').length} active accounts`,
+      value: loggedInUsers ?? 0,
+      context: `${activeUsers ?? 0} active accounts`,
       linkModule: 'users',
       status: 'loaded',
     },
     {
       id: 'card-credits',
       label: 'API Credits Remaining',
-      // TODO(backend): warning threshold comes from backend configuration — never hardcoded
-      value: runtimeSettings.credits.current_credits,
-      context: runtimeSettings.credits.credits_last_refreshed
-        ? `Refreshed ${new Date(runtimeSettings.credits.credits_last_refreshed).toLocaleDateString()}`
+      value: credits.current_credits ?? null,
+      context: credits.credits_last_refreshed
+        ? `Refreshed ${new Date(credits.credits_last_refreshed).toLocaleDateString()}`
         : null,
       linkModule: 'settings',
       status: 'loaded',
@@ -84,31 +98,37 @@ export async function getDashboardCards(): Promise<DashboardCardData[]> {
     {
       id: 'card-import',
       label: 'Latest Bulk Import',
-      value: lastImport ? `${lastImport.rows_inserted.toLocaleString()} rows` : null,
-      context: lastImport
-        ? `${lastImport.filename} — ${lastImport.status}`
+      value: lastImportData ? `${lastImportData.rows_inserted.toLocaleString()} rows` : null,
+      context: lastImportData
+        ? `${lastImportData.filename} — ${lastImportData.status}`
         : 'No imports yet',
       linkModule: 'import-export',
       status: 'loaded',
-      badgeVariant: lastImport?.status === 'complete' ? 'outline' : lastImport?.status === 'failed' ? 'destructive' : 'secondary',
-      badgeLabel: lastImport?.status ?? undefined,
+      badgeVariant: lastImportData?.status === 'complete' ? 'outline' : lastImportData?.status === 'failed' ? 'destructive' : 'secondary',
+      badgeLabel: lastImportData?.status ?? undefined,
     },
   ];
 }
 
-// Deterministic failure fixture: simulates one card endpoint failing
 export async function getDashboardCardById(id: string): Promise<DashboardCardData> {
-  await delay(350);
-  if (id === 'card-credits-fail.test') {
-    throw new Error('Endpoint unavailable');
-  }
   const cards = await getDashboardCards();
   return cards.find((c) => c.id === id) ?? { id, label: 'Unknown', value: null, context: null, linkModule: null, status: 'unavailable' };
 }
 
 export async function getDashboardActivity(): Promise<DashboardActivity[]> {
-  await delay(300);
-  return MOCK_DASHBOARD_ACTIVITY;
+  // Aggregate recent activity across tables for dashboard
+  const { data: requests } = await supabase.from('reach_requests').select('id, domain_name, created_at').order('created_at', { ascending: false }).limit(3);
+  const { data: imports } = await supabase.from('import_jobs').select('id, filename, started_at').order('started_at', { ascending: false }).limit(2);
+  const { data: profiles } = await supabase.from('profiles').select('id, email, created_at').order('created_at', { ascending: false }).limit(2);
+
+  const combined: DashboardActivity[] = [
+    ...(requests || []).map((r: any) => ({ id: r.id, description: `Requested domain: ${r.domain_name}`, timestamp: r.created_at, category: 'request' as const })),
+    ...(imports || []).map((i: any) => ({ id: i.id, description: `Started import: ${i.filename}`, timestamp: i.started_at, category: 'import' as const })),
+    ...(profiles || []).map((p: any) => ({ id: p.id, description: `New user signed up: ${p.email}`, timestamp: p.created_at, category: 'user' as const }))
+  ];
+
+  combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return combined.slice(0, 5);
 }
 
 // ── User Activity ─────────────────────────────────────────────────────────────
@@ -118,20 +138,17 @@ export async function getUserActivityLogs(
   pageSize: number = 25,
   filter?: string
 ): Promise<{ data: ActivityLog[]; pagination: PaginationState }> {
-  await delay(400);
-  let data = MOCK_ACTIVITY_LOGS;
+  let query = supabase.from('activity_logs').select('*', { count: 'exact' });
+
   if (filter) {
-    const q = filter.toLowerCase();
-    data = data.filter(
-      (l) =>
-        l.user_display.toLowerCase().includes(q) ||
-        l.action_type.toLowerCase().includes(q) ||
-        l.resource_type.toLowerCase().includes(q)
-    );
+    query = query.or(`user_display.ilike.%${filter}%,action_type.ilike.%${filter}%,resource_type.ilike.%${filter}%`);
   }
-  const total = data.length;
+
   const start = (page - 1) * pageSize;
-  return { data: data.slice(start, start + pageSize), pagination: { page, pageSize, total } };
+  const { data, error, count } = await query.order('timestamp', { ascending: false }).range(start, start + pageSize - 1);
+
+  if (error) throw new Error(error.message);
+  return { data: data as ActivityLog[], pagination: { page, pageSize, total: count || 0 } };
 }
 
 export async function getReachRequests(
@@ -139,17 +156,17 @@ export async function getReachRequests(
   pageSize: number = 25,
   filter?: string
 ): Promise<{ data: ReachRequest[]; pagination: PaginationState }> {
-  await delay(350);
-  let data = MOCK_REACH_REQUESTS;
+  let query = supabase.from('reach_requests').select('*', { count: 'exact' });
+
   if (filter) {
-    const q = filter.toLowerCase();
-    data = data.filter(
-      (r) => r.domain_name.includes(q) || r.requested_by.includes(q) || r.status.includes(q)
-    );
+    query = query.or(`domain_name.ilike.%${filter}%,status.ilike.%${filter}%`);
   }
-  const total = data.length;
+
   const start = (page - 1) * pageSize;
-  return { data: data.slice(start, start + pageSize), pagination: { page, pageSize, total } };
+  const { data, error, count } = await query.order('created_at', { ascending: false }).range(start, start + pageSize - 1);
+
+  if (error) throw new Error(error.message);
+  return { data: data as ReachRequest[], pagination: { page, pageSize, total: count || 0 } };
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
@@ -159,51 +176,51 @@ export async function getUsers(
   pageSize: number = 25,
   filter?: string
 ): Promise<{ data: UserRecord[]; pagination: PaginationState }> {
-  await delay(350);
-  let data = runtimeUsers;
+  let query = supabase.from('profiles').select('*', { count: 'exact' });
+
   if (filter) {
-    const q = filter.toLowerCase();
-    data = data.filter(
-      (u) =>
-        u.email.toLowerCase().includes(q) ||
-        u.name.toLowerCase().includes(q) ||
-        u.role.includes(q)
-    );
+    query = query.or(`email.ilike.%${filter}%,name.ilike.%${filter}%`);
   }
-  const total = data.length;
+
   const start = (page - 1) * pageSize;
-  return { data: data.slice(start, start + pageSize), pagination: { page, pageSize, total } };
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .range(start, start + pageSize - 1);
+
+  if (error) {
+    console.error('Error fetching users:', error);
+    throw new Error('Failed to fetch users');
+  }
+
+  return {
+    data: data as UserRecord[],
+    pagination: { page, pageSize, total: count || 0 }
+  };
 }
 
 export async function addUser(
-  data: { email: string; name: string; role: Role }
+  _data: { email: string; name: string; role: Role }
 ): Promise<UserRecord> {
-  await delay(500);
-  const existing = runtimeUsers.find((u) => u.email === data.email);
-  if (existing) throw new Error('A user with this email already exists.');
-  const newUser: UserRecord = {
-    id: `usr-${Date.now()}`,
-    email: data.email,
-    name: data.name,
-    role: data.role,
-    status: 'active',
-    last_login: null,
-    created_at: new Date().toISOString(),
-  };
-  runtimeUsers = [newUser, ...runtimeUsers];
-  return newUser;
+  throw new Error('Users must sign in via Google OAuth first to request access.');
 }
 
 export async function updateUser(
   id: string,
   updates: Partial<{ name: string; role: Role; status: UserStatus }>
 ): Promise<UserRecord> {
-  await delay(400);
-  const idx = runtimeUsers.findIndex((u) => u.id === id);
-  if (idx === -1) throw new Error('User not found.');
-  const updated = { ...runtimeUsers[idx], ...updates };
-  runtimeUsers = runtimeUsers.map((u) => (u.id === id ? updated : u));
-  return updated;
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating user:', error);
+    throw new Error('Failed to update user');
+  }
+
+  return data as UserRecord;
 }
 
 // ── Logs ───────────────────────────────────────────────────────────────────────
@@ -214,129 +231,124 @@ export async function getLogs(
   pageSize: number = 50,
   filter?: string
 ): Promise<{ data: (ActivityLog | RequestLog | ApiLog | ErrorLog)[]; pagination: PaginationState }> {
-  await delay(400);
-
-  let data: (ActivityLog | RequestLog | ApiLog | ErrorLog)[];
+  let table = '';
   switch (type) {
-    case 'activity': data = MOCK_ACTIVITY_LOGS; break;
-    case 'request': data = MOCK_REQUEST_LOGS; break;
-    case 'api': data = MOCK_API_LOGS; break;
-    case 'error': data = MOCK_ERROR_LOGS; break;
-    default: data = [];
+    case 'activity': table = 'activity_logs'; break;
+    case 'request': table = 'reach_requests'; break;
+    case 'api': table = 'api_logs'; break;
+    case 'error': table = 'error_logs'; break;
   }
+
+  let query = supabase.from(table).select('*', { count: 'exact' });
 
   if (filter) {
-    const q = filter.toLowerCase();
-    data = data.filter((entry) =>
-      Object.values(entry).some((v) => String(v ?? '').toLowerCase().includes(q))
-    );
+    // Basic catch-all filter logic based on table text columns
+    if (table === 'activity_logs') query = query.or(`action_type.ilike.%${filter}%,details.ilike.%${filter}%`);
+    if (table === 'reach_requests') query = query.or(`domain_name.ilike.%${filter}%`);
+    if (table === 'api_logs') query = query.or(`operation.ilike.%${filter}%,resource.ilike.%${filter}%`);
+    if (table === 'error_logs') query = query.or(`error_context.ilike.%${filter}%,diagnostic.ilike.%${filter}%`);
   }
 
-  const total = data.length;
   const start = (page - 1) * pageSize;
-  return { data: data.slice(start, start + pageSize), pagination: { page, pageSize, total } };
+  // Fallback sort columns depending on table
+  const sortCol = table === 'reach_requests' ? 'created_at' : table === 'activity_logs' ? 'timestamp' : table === 'api_logs' ? 'timestamp' : 'timestamp';
+  const { data, error, count } = await query.order(sortCol, { ascending: false }).range(start, start + pageSize - 1);
+
+  if (error) throw new Error(error.message);
+  return { data: data as any[], pagination: { page, pageSize, total: count || 0 } };
 }
 
 // ── Import / Export ───────────────────────────────────────────────────────────
 
 export async function getImportHistory(): Promise<ImportJob[]> {
-  await delay(300);
-  return runtimeImportJobs;
+  const { data, error } = await supabase.from('import_jobs').select('*').order('started_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data as ImportJob[];
 }
 
 export async function simulateImport(filename: string, sizeBytes: number): Promise<ImportJob> {
-  await delay(1200);
-
-  // Deterministic failure fixture
-  const isPartial = filename.includes('partial') || filename.includes('error');
   const totalRows = Math.floor(sizeBytes / 250);
-  const invalidRows = isPartial ? 3 : 0;
-
-  const job: ImportJob = {
-    id: `imp-${Date.now()}`,
+  const { data, error } = await supabase.from('import_jobs').insert({
     filename,
     file_size_bytes: sizeBytes,
     total_rows: totalRows,
-    valid_rows: totalRows - invalidRows,
-    invalid_rows: invalidRows,
+    valid_rows: totalRows,
+    invalid_rows: 0,
     status: 'validation_complete',
     rows_inserted: 0,
     rows_rejected: 0,
-    validation_errors: isPartial
-      ? [
-          { row: 14, field: 'domain_name', reason: 'Invalid domain format' },
-          { row: 87, field: 'reach_value', reason: 'Value must be a positive integer' },
-          { row: 203, field: 'domain_name', reason: 'Domain cannot be empty' },
-        ]
-      : [],
-    started_at: new Date().toISOString(),
-    completed_at: null,
-  };
-  runtimeImportJobs = [job, ...runtimeImportJobs];
-  return job;
+    validation_errors: []
+  }).select().single();
+
+  if (error) throw new Error(error.message);
+  return data as ImportJob;
 }
 
 export async function confirmImport(jobId: string): Promise<ImportJob> {
-  await delay(1500);
-  const idx = runtimeImportJobs.findIndex((j) => j.id === jobId);
-  if (idx === -1) throw new Error('Import job not found.');
-  const job = runtimeImportJobs[idx];
-  const completed: ImportJob = {
-    ...job,
+  const { data: job } = await supabase.from('import_jobs').select('*').eq('id', jobId).single();
+  if (!job) throw new Error('Job not found');
+
+  const { data, error } = await supabase.from('import_jobs').update({
     status: 'complete',
     rows_inserted: job.valid_rows,
     rows_rejected: job.invalid_rows,
-    completed_at: new Date().toISOString(),
-  };
-  runtimeImportJobs = runtimeImportJobs.map((j) => (j.id === jobId ? completed : j));
-  return completed;
+    completed_at: new Date().toISOString()
+  }).eq('id', jobId).select().single();
+
+  if (error) throw new Error(error.message);
+  return data as ImportJob;
 }
 
 export async function exportData(
   format: ExportFormat
 ): Promise<{ filename: string; size_bytes: number }> {
-  await delay(1000);
-  const ext = format === 'csv' ? 'csv' : 'xlsx';
+  // In a real app, this would trigger an Edge Function to generate the export
   return {
-    filename: `reacher_export_${new Date().toISOString().slice(0, 10)}.${ext}`,
-    size_bytes: 48200,
+    filename: `reacher_export_${new Date().toISOString().slice(0, 10)}.${format}`,
+    size_bytes: Math.floor(Math.random() * 50000) + 10000,
   };
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 export async function getNotifications(): Promise<Notification[]> {
-  await delay(200);
-  return runtimeNotifications;
+  const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data as Notification[];
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  await delay(100);
-  runtimeNotifications = runtimeNotifications.map((n) =>
-    n.id === id ? { ...n, read: true } : n
-  );
+  await supabase.from('notifications').update({ read: true }).eq('id', id);
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  await delay(150);
-  runtimeNotifications = runtimeNotifications.map((n) => ({ ...n, read: true }));
+  await supabase.from('notifications').update({ read: true }).eq('read', false);
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 export async function getSettings(): Promise<SettingsConfig> {
-  await delay(300);
-  return runtimeSettings;
+  const { data, error } = await supabase.from('app_settings').select('*');
+  if (error) throw new Error(error.message);
+
+  const config: any = {};
+  data.forEach(row => {
+    config[row.section] = row.config;
+  });
+
+  return config as SettingsConfig;
 }
 
 export async function saveSettings(
   section: keyof SettingsConfig,
   updates: Partial<SettingsConfig[keyof SettingsConfig]>
 ): Promise<SettingsConfig> {
-  await delay(500);
-  runtimeSettings = {
-    ...runtimeSettings,
-    [section]: { ...runtimeSettings[section], ...updates },
-  };
-  return runtimeSettings;
+  // First get current config for this section
+  const { data: current } = await supabase.from('app_settings').select('config').eq('section', section).single();
+  const currentConfig = current?.config || {};
+
+  const newConfig = { ...currentConfig, ...updates };
+
+  await supabase.from('app_settings').upsert({ section, config: newConfig });
+  return getSettings();
 }
