@@ -67,6 +67,12 @@ export const Dialog: React.FC<DialogProps> = ({
   useEffect(() => {
     if (open) {
       document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, handleKeyDown]);
+
+  useEffect(() => {
+    if (open) {
       // Focus the close button on open
       setTimeout(() => closeBtnRef.current?.focus(), 10);
     } else {
@@ -76,8 +82,7 @@ export const Dialog: React.FC<DialogProps> = ({
         trigger?.focus();
       }
     }
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, handleKeyDown, triggerId]);
+  }, [open, triggerId]);
 
   // Prevent body scroll while open
   useEffect(() => {
