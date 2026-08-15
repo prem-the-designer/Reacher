@@ -83,7 +83,7 @@ export async function searchMasterDatabase(
         media_type: manualData.media_type,
         publication: manualData.outlet_name,
         granularity: null,
-        data_source: 'Master DB',
+        data_source: 'Master Database',
         last_updated: manualData.updated_date
       }, 
       error: null 
@@ -113,7 +113,7 @@ export async function searchMasterDatabase(
         media_type: null,
         publication: null,
         granularity: null,
-        data_source: 'Similarweb API',
+        data_source: 'API Fetch',
         last_updated: swData.updated_date
       }, 
       error: null 
