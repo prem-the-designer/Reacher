@@ -8,15 +8,13 @@ interface HeaderProps {
   onSignOut: () => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
-  onOpenQAPanel?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onSignOut,
   darkMode,
-  onToggleDarkMode,
-  onOpenQAPanel
+  onToggleDarkMode
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur-xs">
@@ -38,18 +36,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Controls */}
         <div className="flex items-center gap-2">
-          {/* QA Toolbar trigger */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenQAPanel}
-            className="gap-1.5 text-xs border-dashed text-muted-foreground hover:text-foreground"
-            title="Open State Machine & QA Controller"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span className="hidden md:inline">QA State Inspector</span>
-          </Button>
-
           {/* Theme switcher */}
           <Button
             variant="ghost"
