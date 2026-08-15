@@ -308,6 +308,7 @@ export async function completeImportJob(jobId: string, rowsInserted: number, row
 }
 
 export async function failImportJob(jobId: string, errorMsg: string): Promise<ImportJob> {
+  console.error(`Import job ${jobId} failed: ${errorMsg}`);
   const { data, error } = await supabase.from('import_jobs').update({
     status: 'failed',
     completed_at: new Date().toISOString()

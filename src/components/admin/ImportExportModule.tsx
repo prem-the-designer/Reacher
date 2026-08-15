@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import Papa from 'papaparse';
 import type { ImportJob, ExportFormat, ExportStatus, ImportValidationError } from '@/types';
 import { createImportJob, insertManualReachBatch, completeImportJob, failImportJob, exportData } from '@/services/adminService';
@@ -94,7 +95,7 @@ export const ImportExportModule: React.FC = () => {
   const handleFileSelect = (file: File) => {
     const err = validateFileType(file);
     if (err) {
-      setImportState({ step: 'upload', file: null, job: null, error: err });
+      setImportState({ step: 'upload', file: null, job: null, error: err, validRowsData: [], progress: 0 });
       return;
     }
     setImportState({ step: 'upload', file, job: null, error: null, validRowsData: [], progress: 0 });
