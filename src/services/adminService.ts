@@ -266,32 +266,50 @@ export async function getImportHistory(): Promise<ImportJob[]> {
   return data as ImportJob[];
 }
 
-export async function simulateImport(filename: string, sizeBytes: number): Promise<ImportJob> {
-  const totalRows = Math.floor(sizeBytes / 250);
+export async function createImportJob(
+  filename: string, 
+  sizeBytes: number, 
+  totalRows: number, 
+  validRows: number, 
+  invalidRows: number, 
+  validationErrors: any[]
+): Promise<ImportJob> {
   const { data, error } = await supabase.from('import_jobs').insert({
     filename,
     file_size_bytes: sizeBytes,
     total_rows: totalRows,
-    valid_rows: totalRows,
-    invalid_rows: 0,
+    valid_rows: validRows,
+    invalid_rows: invalidRows,
     status: 'validation_complete',
     rows_inserted: 0,
     rows_rejected: 0,
-    validation_errors: []
+    validation_errors: validationErrors
   }).select().single();
 
   if (error) throw new Error(error.message);
   return data as ImportJob;
 }
 
-export async function confirmImport(jobId: string): Promise<ImportJob> {
-  const { data: job } = await supabase.from('import_jobs').select('*').eq('id', jobId).single();
-  if (!job) throw new Error('Job not found');
+export async function insertManualReachBatch(rows: any[]): Promise<void> {
+  const { error } = await supabase.from('manual_reach_values').insert(rows);
+  if (error) throw new Error(error.message);
+}
 
+export async function completeImportJob(jobId: string, rowsInserted: number, rowsRejected: number): Promise<ImportJob> {
   const { data, error } = await supabase.from('import_jobs').update({
     status: 'complete',
-    rows_inserted: job.valid_rows,
-    rows_rejected: job.invalid_rows,
+    rows_inserted: rowsInserted,
+    rows_rejected: rowsRejected,
+    completed_at: new Date().toISOString()
+  }).eq('id', jobId).select().single();
+
+  if (error) throw new Error(error.message);
+  return data as ImportJob;
+}
+
+export async function failImportJob(jobId: string, errorMsg: string): Promise<ImportJob> {
+  const { data, error } = await supabase.from('import_jobs').update({
+    status: 'failed',
     completed_at: new Date().toISOString()
   }).eq('id', jobId).select().single();
 

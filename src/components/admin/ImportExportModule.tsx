@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import Papa from 'papaparse';
 import type { ImportJob, ExportFormat, ExportStatus, ImportValidationError } from '@/types';
-import { simulateImport, confirmImport, exportData } from '@/services/adminService';
+import { createImportJob, insertManualReachBatch, completeImportJob, failImportJob, exportData } from '@/services/adminService';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
@@ -31,6 +31,8 @@ interface ImportState {
   file: File | null;
   job: ImportJob | null;
   error: string | null;
+  validRowsData: any[];
+  progress: number;
 }
 
 const VALIDATION_ERROR_COLUMNS: DataTableColumn<ImportValidationError>[] = [
@@ -65,6 +67,8 @@ export const ImportExportModule: React.FC = () => {
     file: null,
     job: null,
     error: null,
+    validRowsData: [],
+    progress: 0,
   });
   const [dragOver, setDragOver] = useState(false);
 
@@ -93,7 +97,7 @@ export const ImportExportModule: React.FC = () => {
       setImportState({ step: 'upload', file: null, job: null, error: err });
       return;
     }
-    setImportState({ step: 'upload', file, job: null, error: null });
+    setImportState({ step: 'upload', file, job: null, error: null, validRowsData: [], progress: 0 });
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -103,30 +107,117 @@ export const ImportExportModule: React.FC = () => {
     if (file) handleFileSelect(file);
   };
 
-  const handleValidate = async () => {
+  const handleValidate = () => {
     if (!importState.file) return;
-    setImportState((s) => ({ ...s, step: 'validating', error: null }));
-    try {
-      const job = await simulateImport(importState.file.name, importState.file.size);
-      setImportState((s) => ({ ...s, step: 'result', job }));
-    } catch {
-      setImportState((s) => ({ ...s, step: 'failed', error: 'Validation could not be completed. Please try again.' }));
-    }
+    setImportState((s) => ({ ...s, step: 'validating', error: null, validRowsData: [] }));
+
+    Papa.parse(importState.file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const rows = results.data as any[];
+          const validRows: any[] = [];
+          const invalidRows: any[] = [];
+          const errors: ImportValidationError[] = [];
+          
+          rows.forEach((row, index) => {
+            const rowNum = index + 2; // +1 for header, +1 for 0-index
+            const domain_url = row['Domain URL'] || row['domain_url'];
+            const monthly_reach = row['Monthly Reach'] ? parseInt(String(row['Monthly Reach']).replace(/,/g, '')) : null;
+            const daily_reach = row['Daily Reach'] ? parseInt(String(row['Daily Reach']).replace(/,/g, '')) : null;
+            const reach_value = row['Reach Value'] 
+              ? parseInt(String(row['Reach Value']).replace(/,/g, '')) 
+              : (monthly_reach || daily_reach || 0);
+
+            if (!domain_url) {
+              invalidRows.push(row);
+              if (errors.length < 50) {
+                errors.push({ row: rowNum, field: 'Domain URL', reason: 'Missing mandatory domain_url' });
+              }
+              return;
+            }
+
+            if (reach_value === null || isNaN(reach_value)) {
+              invalidRows.push(row);
+              if (errors.length < 50) {
+                errors.push({ row: rowNum, field: 'Reach Value', reason: 'Missing or invalid reach_value' });
+              }
+              return;
+            }
+
+            validRows.push({
+              outlet_name: row['Outlet Name'] || row['outlet_name'] || null,
+              domain_url,
+              media_type: row['Media Type'] || row['media_type'] || null,
+              daily_reach: isNaN(daily_reach as number) ? null : daily_reach,
+              monthly_reach: isNaN(monthly_reach as number) ? null : monthly_reach,
+              reach_value,
+              country: row['Country'] || row['country'] || null,
+              state: row['State'] || row['state'] || null,
+              cpm: row['CPM'] ? parseFloat(String(row['CPM']).replace(/[^0-9.-]+/g, '')) : null,
+              ad_rate: row['Ad Rate'] ? parseFloat(String(row['Ad Rate']).replace(/[^0-9.-]+/g, '')) : null,
+              region: row['Region'] || row['region'] || null,
+              category_name: row['Category Name'] || row['category_name'] || null,
+              source_type: row['Source Type'] || row['source_type'] || null,
+              updated_date: row['Date'] ? new Date(row['Date']).toISOString() : new Date().toISOString()
+            });
+          });
+
+          // Create the job record in DB
+          const job = await createImportJob(
+            importState.file!.name,
+            importState.file!.size,
+            rows.length,
+            validRows.length,
+            invalidRows.length,
+            errors
+          );
+
+          setImportState((s) => ({ 
+            ...s, 
+            step: 'result', 
+            job, 
+            validRowsData: validRows 
+          }));
+        } catch (err) {
+          console.error(err);
+          setImportState((s) => ({ ...s, step: 'failed', error: 'Validation could not be completed.' }));
+        }
+      },
+      error: (error) => {
+        setImportState((s) => ({ ...s, step: 'failed', error: `Parsing error: ${error.message}` }));
+      }
+    });
   };
 
   const handleConfirmImport = async () => {
-    if (!importState.job) return;
-    setImportState((s) => ({ ...s, step: 'importing' }));
+    if (!importState.job || importState.validRowsData.length === 0) return;
+    setImportState((s) => ({ ...s, step: 'importing', progress: 0 }));
+    
     try {
-      const completed = await confirmImport(importState.job.id);
-      setImportState((s) => ({ ...s, step: 'complete', job: completed }));
-    } catch {
-      setImportState((s) => ({ ...s, step: 'failed', error: 'Import failed. Your data has not been changed.' }));
+      const BATCH_SIZE = 5000;
+      const totalBatches = Math.ceil(importState.validRowsData.length / BATCH_SIZE);
+      
+      for (let i = 0; i < totalBatches; i++) {
+        const batch = importState.validRowsData.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        await insertManualReachBatch(batch);
+        setImportState((s) => ({ ...s, progress: Math.round(((i + 1) / totalBatches) * 100) }));
+      }
+
+      const completed = await completeImportJob(importState.job.id, importState.validRowsData.length, importState.job.invalid_rows);
+      setImportState((s) => ({ ...s, step: 'complete', job: completed, validRowsData: [] }));
+    } catch (err) {
+      console.error(err);
+      if (importState.job) {
+         await failImportJob(importState.job.id, 'Import failed during batch insertion');
+      }
+      setImportState((s) => ({ ...s, step: 'failed', error: 'Import failed. Your data may be partially inserted.' }));
     }
   };
 
   const handleReset = () => {
-    setImportState({ step: 'upload', file: null, job: null, error: null });
+    setImportState({ step: 'upload', file: null, job: null, error: null, validRowsData: [], progress: 0 });
   };
 
   // ── Export handlers ─────────────────────────────────────────────────────────
@@ -352,11 +443,13 @@ export const ImportExportModule: React.FC = () => {
           </div>
         )}
 
-        {/* Importing step */}
         {importState.step === 'importing' && (
           <Card elevation="xs" className="p-8 flex flex-col items-center gap-4 max-w-2xl" role="status" aria-live="polite">
             <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" aria-hidden="true" />
-            <p className="text-sm font-medium text-foreground">Importing rows…</p>
+            <p className="text-sm font-medium text-foreground">Importing rows ({importState.progress}%)…</p>
+            <div className="w-full max-w-sm bg-muted rounded-full h-2.5 mt-2">
+              <div className="bg-primary h-2.5 rounded-full transition-all duration-300" style={{ width: `${importState.progress}%` }}></div>
+            </div>
             <p className="text-xs text-muted-foreground">This may take a moment. Do not close this page.</p>
           </Card>
         )}
