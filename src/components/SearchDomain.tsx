@@ -46,18 +46,29 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   const retryButtonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Update autocomplete options on input change
+  // Update autocomplete options on input change with debounce
   useEffect(() => {
     let isActive = true;
-    if (inputVal.trim().length > 1) {
-      getAutocompleteDomains(inputVal).then(matches => {
+    const trimmedInput = inputVal.trim();
+    
+    if (trimmedInput.length <= 1) {
+      setSuggestions([]);
+      setSelectedIndex(-1);
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      getAutocompleteDomains(trimmedInput).then(matches => {
         if (isActive) setSuggestions(matches);
       });
-    } else {
-      setSuggestions([]);
-    }
+    }, 300); // 300ms debounce
+
     setSelectedIndex(-1);
-    return () => { isActive = false; };
+    
+    return () => { 
+      isActive = false; 
+      clearTimeout(timerId);
+    };
   }, [inputVal]);
 
   // Notify parent component of state change if requested
