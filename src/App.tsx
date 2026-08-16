@@ -143,6 +143,7 @@ export function App() {
       if (status === 'SUBSCRIBED') {
         await channel.track({
           user_id: currentUser.id,
+          role: currentUser.role,
           online_at: new Date().toISOString(),
         });
       }

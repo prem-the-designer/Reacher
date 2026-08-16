@@ -72,7 +72,11 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
       const state = channel.presenceState();
       const uniqueUsers = new Set();
       for (const id in state) {
-        uniqueUsers.add(id); // Because we configured 'presence: { key: currentUser.id }', 'id' is literally the user's ID
+        const presences = state[id];
+        // Only count if the user is NOT an admin
+        if (presences.length > 0 && (presences[0] as any).role !== 'admin') {
+          uniqueUsers.add(id); 
+        }
       }
       setRealtimeUsers(uniqueUsers.size);
     });
