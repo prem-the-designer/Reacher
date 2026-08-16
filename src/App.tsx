@@ -94,14 +94,14 @@ export function App() {
         const { error: profileError } = await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
         if (profileError) console.error('Failed to update last_login:', profileError);
         
-        // Record User Presence in Activity Logs on login or returning to app
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        // Record User Presence in Activity Logs only on actual login
+        if (event === 'SIGNED_IN') {
           const { error: logError } = await supabase.from('activity_logs').insert({
             user_id: session.user.id,
             user_display: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Unknown User',
             action_type: 'login',
             resource_type: 'system',
-            details: event === 'INITIAL_SESSION' ? 'User opened or refreshed the application' : 'User logged into the application'
+            details: 'User logged into the application'
           });
           if (logError) console.error('Failed to insert activity_log:', logError);
         }
