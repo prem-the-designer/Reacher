@@ -21,9 +21,6 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* Identity wordmark */}
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs shadow-xs select-none">
-            RV
-          </div>
           <span className="font-semibold text-lg tracking-tight text-foreground">
             Reacher
           </span>
