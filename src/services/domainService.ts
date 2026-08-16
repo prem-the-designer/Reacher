@@ -133,13 +133,14 @@ async function fakeSimilarwebApi(domain: string) {
   // Simulate network latency
   await new Promise((resolve) => setTimeout(resolve, 800));
 
-  // Generate deterministic reach value for the domain based on string hash
+  // Generate deterministic reach value for the domain based on string hash, plus some randomness to simulate live data changes
   let hash = 0;
   for (let i = 0; i < domain.length; i++) {
     hash = (hash << 5) - hash + domain.charCodeAt(i);
     hash |= 0;
   }
-  const generatedReach = Math.abs(hash % 9000000) + 1250000;
+  const baseReach = Math.abs(hash % 9000000) + 1250000;
+  const generatedReach = baseReach + Math.floor(Math.random() * 50000) - 25000;
 
   // Exact JSON structure returned by Similarweb V1 API for Visits
   return {
@@ -187,43 +188,68 @@ export async function fetchNewDomainReach(
   // Extract reach value from the Similarweb API JSON structure
   const fetchedReach = apiResponse.visits[0].visits;
 
-  const row = {
-    domain_url: normalizedDomain,
-    reach_value: fetchedReach,
-  };
 
-  // Insert into the new similarweb_reach table instead of the deprecated domains table
-  // Check if it already exists to handle "refresh" action
-  const { data: existingData } = await supabase
-    .from('similarweb_reach')
-    .select('id')
+  // Check if it exists in manual_reach_values first
+  const { data: manualData } = await supabase
+    .from('manual_reach_values')
+    .select('id, country, media_type, outlet_name')
     .eq('domain_url', normalizedDomain)
     .single();
 
   let data, error;
-  if (existingData) {
-    // Update existing
+  let dataSource: 'API Fetch' | 'Master Database' = 'API Fetch';
+  let provider = 'Similarweb';
+  let recordCountry = null;
+  let recordMediaType = null;
+  let recordPublication = null;
+
+  if (manualData) {
+    // If it was a manual entry, update it in place so searchMasterDatabase finds the fresh value
     const res = await supabase
-      .from('similarweb_reach')
+      .from('manual_reach_values')
       .update({ reach_value: fetchedReach, updated_date: new Date().toISOString() })
-      .eq('id', existingData.id)
+      .eq('id', manualData.id)
       .select()
       .single();
     data = res.data;
     error = res.error;
+    dataSource = 'Master Database';
+    provider = 'Manual DBO (Refreshed)';
+    recordCountry = manualData.country;
+    recordMediaType = manualData.media_type;
+    recordPublication = manualData.outlet_name;
   } else {
-    // Insert new
-    const res = await supabase
+    // Otherwise handle it in similarweb_reach
+    const { data: existingData } = await supabase
       .from('similarweb_reach')
-      .insert([row])
-      .select()
+      .select('id')
+      .eq('domain_url', normalizedDomain)
       .single();
-    data = res.data;
-    error = res.error;
+
+    if (existingData) {
+      // Update existing
+      const res = await supabase
+        .from('similarweb_reach')
+        .update({ reach_value: fetchedReach, updated_date: new Date().toISOString() })
+        .eq('id', existingData.id)
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+    } else {
+      // Insert new
+      const res = await supabase
+        .from('similarweb_reach')
+        .insert([{ domain_url: normalizedDomain, reach_value: fetchedReach }])
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+    }
   }
   
   if (error) {
-    console.error('Failed to insert into similarweb_reach:', error);
+    console.error('Failed to update reach:', error);
     return { record: null, error: 'database_unavailable' };
   }
 
@@ -231,12 +257,12 @@ export async function fetchNewDomainReach(
     id: data.id,
     domain_name: normalizedDomain,
     reach_value: fetchedReach,
-    provider: 'Similarweb',
-    country: null,
-    media_type: null,
-    publication: null,
+    provider: provider,
+    country: recordCountry,
+    media_type: recordMediaType,
+    publication: recordPublication,
     granularity: null,
-    data_source: 'API Fetch',
+    data_source: dataSource,
     last_updated: data.updated_date,
   };
 
