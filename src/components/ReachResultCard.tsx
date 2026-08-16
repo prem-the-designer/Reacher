@@ -108,6 +108,7 @@ export const ReachResultCard: React.FC<ReachResultCardProps> = ({ record, onRefr
                 Outdated
               </span>
               <button
+                id="refresh-reach-button"
                 type="button"
                 onClick={onRefresh}
                 title="Refresh to get latest reach value"

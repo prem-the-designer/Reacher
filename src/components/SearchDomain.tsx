@@ -140,6 +140,9 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
         e.preventDefault();
         document.getElementById('copy-reach-button')?.click();
         setToastMessage('Reach Value copied');
+      } else if ((e.key === 'r' || e.key === 'R') && searchState.record) {
+        e.preventDefault();
+        document.getElementById('refresh-reach-button')?.click();
       }
     };
 
@@ -613,6 +616,10 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           <div className="flex justify-between items-center py-2 border-b border-border/50">
             <span className="text-sm font-medium text-foreground">Copy Reach Value</span>
             <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">C</kbd>
+          </div>
+          <div className="flex justify-between items-center py-2 border-b border-border/50">
+            <span className="text-sm font-medium text-foreground">Refresh Outdated Reach Value</span>
+            <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">R</kbd>
           </div>
           <div className="flex justify-between items-center py-2">
             <span className="text-sm font-medium text-foreground">Open Info Modal</span>
