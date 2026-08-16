@@ -354,7 +354,7 @@ export async function createImportJob(
 }
 
 export async function insertManualReachBatch(rows: any[]): Promise<void> {
-  const { error } = await supabase.from('manual_reach_values').insert(rows);
+  const { error } = await supabase.from('manual_reach_values').upsert(rows, { onConflict: 'domain_url' });
   if (error) throw new Error(error.message);
 }
 

@@ -2,7 +2,7 @@
 create table if not exists public.manual_reach_values (
   id uuid default gen_random_uuid() primary key,
   outlet_name text,
-  domain_url text not null,
+  domain_url text not null unique,
   media_type text,
   daily_reach bigint,
   monthly_reach bigint,
@@ -27,7 +27,7 @@ create policy "Analysts can update manual reach values" on manual_reach_values f
 -- 2. SIMILARWEB REACH FETCH TABLE
 create table if not exists public.similarweb_reach (
   id uuid default gen_random_uuid() primary key,
-  domain_url text not null,
+  domain_url text not null unique,
   reach_value bigint not null, -- Mandatory as requested
   updated_date timestamp with time zone default now() not null
 );
