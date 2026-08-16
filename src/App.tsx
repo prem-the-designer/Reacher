@@ -89,18 +89,22 @@ export function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       loadSession(session);
 
-      if (event === 'SIGNED_IN' && session) {
-        // Update last_login
-        await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        // Update last_login for any active session
+        const { error: profileError } = await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
+        if (profileError) console.error('Failed to update last_login:', profileError);
         
-        // Record User Presence in Activity Logs
-        await supabase.from('activity_logs').insert({
-          user_id: session.user.id,
-          user_display: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Unknown User',
-          action_type: 'login',
-          resource_type: 'system',
-          details: 'User logged into the application'
-        });
+        // Record User Presence in Activity Logs ONLY on actual login
+        if (event === 'SIGNED_IN') {
+          const { error: logError } = await supabase.from('activity_logs').insert({
+            user_id: session.user.id,
+            user_display: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Unknown User',
+            action_type: 'login',
+            resource_type: 'system',
+            details: 'User logged into the application'
+          });
+          if (logError) console.error('Failed to insert activity_log:', logError);
+        }
       }
     });
 
