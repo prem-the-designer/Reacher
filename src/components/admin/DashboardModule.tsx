@@ -31,8 +31,8 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState(false);
 
-  const loadCards = async () => {
-    setCardsLoading(true);
+  const loadCards = async (silent = false) => {
+    if (!silent) setCardsLoading(true);
     try {
       const data = await getDashboardCards();
       setCards(data);
@@ -42,12 +42,12 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
         prev.map((c) => ({ ...c, status: 'unavailable' as const }))
       );
     } finally {
-      setCardsLoading(false);
+      if (!silent) setCardsLoading(false);
     }
   };
 
-  const loadActivity = async () => {
-    setActivityLoading(true);
+  const loadActivity = async (silent = false) => {
+    if (!silent) setActivityLoading(true);
     setActivityError(false);
     try {
       const data = await getDashboardActivity();
@@ -55,7 +55,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
     } catch {
       setActivityError(true);
     } finally {
-      setActivityLoading(false);
+      if (!silent) setActivityLoading(false);
     }
   };
 
@@ -64,8 +64,8 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
     loadActivity();
 
     const interval = setInterval(() => {
-      loadCards();
-      loadActivity();
+      loadCards(true); // silent fetch
+      loadActivity(true); // silent fetch
     }, 5000);
 
     return () => clearInterval(interval);
@@ -96,7 +96,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
                   card={card}
                   icon={CARD_ICONS[card.id]}
                   onNavigate={onNavigate}
-                  onRetry={loadCards}
+                  onRetry={() => loadCards()}
                 />
               ))}
         </div>
@@ -129,7 +129,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
           >
             <AlertCircle className="h-4 w-4 text-destructive shrink-0" aria-hidden="true" />
             <span className="text-destructive font-medium">Activity feed unavailable.</span>
-            <Button variant="outline" size="sm" onClick={loadActivity} className="ml-auto gap-1.5 text-xs">
+            <Button variant="outline" size="sm" onClick={() => loadActivity()} className="ml-auto gap-1.5 text-xs">
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               Retry
             </Button>
