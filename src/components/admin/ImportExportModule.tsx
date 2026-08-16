@@ -33,6 +33,8 @@ interface ImportState {
   job: ImportJob | null;
   error: string | null;
   validRowsData: any[];
+  duplicateRowsData: any[];
+  fatalErrorCount: number;
   progress: number;
 }
 
@@ -69,6 +71,8 @@ export const ImportExportModule: React.FC = () => {
     job: null,
     error: null,
     validRowsData: [],
+    duplicateRowsData: [],
+    fatalErrorCount: 0,
     progress: 0,
   });
   const [dragOver, setDragOver] = useState(false);
@@ -101,10 +105,10 @@ export const ImportExportModule: React.FC = () => {
   const handleFileSelect = (file: File) => {
     const err = validateFileType(file);
     if (err) {
-      setImportState({ step: 'upload', file: null, job: null, error: err, validRowsData: [], progress: 0 });
+      setImportState({ step: 'upload', file: null, job: null, error: err, validRowsData: [], duplicateRowsData: [], fatalErrorCount: 0, progress: 0 });
       return;
     }
-    setImportState({ step: 'upload', file, job: null, error: null, validRowsData: [], progress: 0 });
+    setImportState({ step: 'upload', file, job: null, error: null, validRowsData: [], duplicateRowsData: [], fatalErrorCount: 0, progress: 0 });
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -125,8 +129,11 @@ export const ImportExportModule: React.FC = () => {
         try {
           const rows = results.data as any[];
           const validRows: any[] = [];
+          const duplicateRows: any[] = [];
           const invalidRows: any[] = [];
           const errors: ImportValidationError[] = [];
+          const seenDomains = new Set<string>();
+          let fatalErrorCount = 0;
           
           rows.forEach((row, index) => {
             const rowNum = index + 2; // +1 for header, +1 for 0-index
@@ -138,6 +145,7 @@ export const ImportExportModule: React.FC = () => {
               : (monthly_reach || daily_reach || 0);
 
             if (!domain_url) {
+              fatalErrorCount++;
               invalidRows.push(row);
               if (errors.length < 50) {
                 errors.push({ row: rowNum, field: 'Domain URL', reason: 'Missing mandatory domain_url' });
@@ -146,6 +154,7 @@ export const ImportExportModule: React.FC = () => {
             }
 
             if (reach_value === null || isNaN(reach_value)) {
+              fatalErrorCount++;
               invalidRows.push(row);
               if (errors.length < 50) {
                 errors.push({ row: rowNum, field: 'Reach Value', reason: 'Missing or invalid reach_value' });
@@ -153,7 +162,7 @@ export const ImportExportModule: React.FC = () => {
               return;
             }
 
-            validRows.push({
+            const processedRow = {
               outlet_name: row['Outlet Name'] || row['outlet_name'] || null,
               domain_url,
               media_type: row['Media Type'] || row['media_type'] || null,
@@ -168,7 +177,18 @@ export const ImportExportModule: React.FC = () => {
               category_name: row['Category Name'] || row['category_name'] || null,
               source_type: row['Source Type'] || row['source_type'] || null,
               updated_date: row['Date'] ? new Date(row['Date']).toISOString() : new Date().toISOString()
-            });
+            };
+
+            if (seenDomains.has(domain_url)) {
+              invalidRows.push(row);
+              if (errors.length < 50) {
+                errors.push({ row: rowNum, field: 'Domain URL', reason: 'Duplicate domain_url detected' });
+              }
+              duplicateRows.push(processedRow);
+            } else {
+              seenDomains.add(domain_url);
+              validRows.push(processedRow);
+            }
           });
 
           // Create the job record in DB
@@ -176,7 +196,7 @@ export const ImportExportModule: React.FC = () => {
             importState.file!.name,
             importState.file!.size,
             rows.length,
-            validRows.length,
+            validRows.length + duplicateRows.length,
             invalidRows.length,
             errors
           );
@@ -185,7 +205,9 @@ export const ImportExportModule: React.FC = () => {
             ...s, 
             step: 'result', 
             job, 
-            validRowsData: validRows 
+            validRowsData: validRows,
+            duplicateRowsData: duplicateRows,
+            fatalErrorCount
           }));
         } catch (err) {
           console.error(err);
@@ -198,22 +220,29 @@ export const ImportExportModule: React.FC = () => {
     });
   };
 
-  const handleConfirmImport = async () => {
-    if (!importState.job || importState.validRowsData.length === 0) return;
+  const handleConfirmImport = async (includeDuplicates: boolean = false) => {
+    if (!importState.job) return;
+    
+    const rowsToImport = includeDuplicates 
+      ? [...importState.validRowsData, ...importState.duplicateRowsData]
+      : importState.validRowsData;
+
+    if (rowsToImport.length === 0) return;
+
     setImportState((s) => ({ ...s, step: 'importing', progress: 0 }));
     
     try {
       const BATCH_SIZE = 5000;
-      const totalBatches = Math.ceil(importState.validRowsData.length / BATCH_SIZE);
+      const totalBatches = Math.ceil(rowsToImport.length / BATCH_SIZE);
       
       for (let i = 0; i < totalBatches; i++) {
-        const batch = importState.validRowsData.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        const batch = rowsToImport.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
         await insertManualReachBatch(batch);
         setImportState((s) => ({ ...s, progress: Math.round(((i + 1) / totalBatches) * 100) }));
       }
 
-      const completed = await completeImportJob(importState.job.id, importState.validRowsData.length, importState.job.invalid_rows);
-      setImportState((s) => ({ ...s, step: 'complete', job: completed, validRowsData: [] }));
+      const completed = await completeImportJob(importState.job.id, rowsToImport.length, importState.job.invalid_rows);
+      setImportState((s) => ({ ...s, step: 'complete', job: completed, validRowsData: [], duplicateRowsData: [], fatalErrorCount: 0 }));
     } catch (err) {
       console.error(err);
       if (importState.job) {
@@ -224,7 +253,7 @@ export const ImportExportModule: React.FC = () => {
   };
 
   const handleReset = () => {
-    setImportState({ step: 'upload', file: null, job: null, error: null, validRowsData: [], progress: 0 });
+    setImportState({ step: 'upload', file: null, job: null, error: null, validRowsData: [], duplicateRowsData: [], fatalErrorCount: 0, progress: 0 });
   };
 
   // ── Export handlers ─────────────────────────────────────────────────────────
@@ -424,19 +453,44 @@ export const ImportExportModule: React.FC = () => {
                 ))}
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
-                <Button
-                  variant="default"
-                  onClick={handleConfirmImport}
-                  disabled={importState.job.valid_rows === 0}
-                  className="gap-2"
-                >
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  Import {importState.job.valid_rows.toLocaleString()} valid rows
-                </Button>
-                <Button variant="ghost" onClick={handleReset}>
-                  Cancel
-                </Button>
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                {importState.fatalErrorCount > 0 ? (
+                  <Button variant="ghost" onClick={handleReset}>Cancel</Button>
+                ) : importState.duplicateRowsData.length > 0 ? (
+                  <>
+                    <Button
+                      variant="default"
+                      onClick={() => handleConfirmImport(true)}
+                      className="gap-2"
+                    >
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      Ignore and Import
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleConfirmImport(false)}
+                      disabled={importState.validRowsData.length === 0}
+                      className="gap-2"
+                    >
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      Import unique
+                    </Button>
+                    <Button variant="ghost" onClick={handleReset}>Cancel</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="default"
+                      onClick={() => handleConfirmImport(false)}
+                      disabled={importState.validRowsData.length === 0}
+                      className="gap-2"
+                    >
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      Import {importState.job.valid_rows.toLocaleString()} valid rows
+                    </Button>
+                    <Button variant="ghost" onClick={handleReset}>Cancel</Button>
+                  </>
+                )}
               </div>
             </Card>
 
