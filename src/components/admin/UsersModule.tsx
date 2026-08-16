@@ -261,7 +261,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Users</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage user accounts and roles</p>
         </div>
-        <Button
+        {/* <Button
           id="add-user-btn"
           variant="default"
           onClick={() => { setAddOpen(true); setAddFormState('idle'); setAddFormErrors({}); setAddFormError(null); }}
@@ -269,7 +269,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
         >
           <UserPlus className="h-4 w-4" aria-hidden="true" />
           Add User
-        </Button>
+        </Button> */}
       </div>
 
       <DataTable
