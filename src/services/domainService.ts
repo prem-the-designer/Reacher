@@ -179,18 +179,19 @@ export async function fetchNewDomainReach(
 
   const logApi = async (status: 'success' | 'failed' | 'rate_limited') => {
     const duration = Date.now() - startTime;
-    await supabase.from('api_logs').insert([{
+    const { error } = await supabase.from('api_logs').insert([{
       operation: 'Similarweb Fetch',
       resource: normalizedDomain,
       status: status,
       duration_ms: duration
     }]);
+    if (error) console.error('Error inserting api log:', error);
   };
 
   const logActivity = async (action: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from('activity_logs').insert([{
+      const { error } = await supabase.from('activity_logs').insert([{
         user_id: user.id,
         user_display: user.user_metadata?.name || user.email || 'Analyst',
         action_type: action,
@@ -198,6 +199,7 @@ export async function fetchNewDomainReach(
         resource_id: normalizedDomain,
         details: `Fetched reach for ${normalizedDomain}`
       }]);
+      if (error) console.error('Error inserting activity log:', error);
     }
   };
 
