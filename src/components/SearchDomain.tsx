@@ -49,6 +49,18 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   const getReachButtonRef = useRef<HTMLButtonElement>(null);
   const retryButtonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Update autocomplete options on input change with debounce
   useEffect(() => {
@@ -371,7 +383,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           }}
           className="flex flex-col sm:flex-row gap-3"
         >
-          <div className="relative flex-1">
+          <div ref={containerRef} className="relative flex-1">
             <Input
               ref={inputRef}
               type="text"
