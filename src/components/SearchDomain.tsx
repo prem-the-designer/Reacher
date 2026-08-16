@@ -138,17 +138,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
         setShowTutorial(true);
       } else if ((e.key === 'c' || e.key === 'C') && searchState.record) {
         e.preventDefault();
-        const raw = searchState.record.reach_value.toString();
-        if (navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(raw);
-        } else {
-          const el = document.createElement('textarea');
-          el.value = raw;
-          document.body.appendChild(el);
-          el.select();
-          document.execCommand('copy');
-          document.body.removeChild(el);
-        }
+        document.getElementById('copy-reach-button')?.click();
         setToastMessage('Reach Value copied');
       }
     };

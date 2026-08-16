@@ -143,6 +143,7 @@ export const ReachResultCard: React.FC<ReachResultCardProps> = ({ record, onRefr
 
         {/* Copy button — top-right corner of the panel */}
         <button
+          id="copy-reach-button"
           type="button"
           onClick={handleCopy}
           aria-label={copied ? 'Copied!' : 'Copy reach value'}
