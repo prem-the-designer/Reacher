@@ -237,28 +237,39 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const normInput = normalizeDomain(inputVal);
+  const hasExactMatch = suggestions.some(s => normalizeDomain(s) === normInput);
+  const showGetReachOption = inputVal.trim().length > 1 && !hasExactMatch;
+  const totalOptions = suggestions.length + (showGetReachOption ? 1 : 0);
+
   // Keyboard navigation for autocomplete list
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (suggestions.length > 0) {
-        setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+      if (totalOptions > 0) {
+        setSelectedIndex((prev) => (prev < totalOptions - 1 ? prev + 1 : 0));
         setShowSuggestions(true);
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (suggestions.length > 0) {
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+      if (totalOptions > 0) {
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : totalOptions - 1));
       }
     } else if (e.key === 'Enter') {
-      if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+      if (showSuggestions && selectedIndex >= 0 && selectedIndex < totalOptions) {
         e.preventDefault();
-        const selected = suggestions[selectedIndex];
-        setInputVal(selected);
-        setShowSuggestions(false);
-        handlePerformSearch(selected);
+        if (selectedIndex < suggestions.length) {
+          const selected = suggestions[selectedIndex];
+          setInputVal(selected);
+          setShowSuggestions(false);
+          handlePerformSearch(selected);
+        } else {
+          setShowSuggestions(false);
+          handlePerformSearch(inputVal);
+        }
       } else {
         e.preventDefault();
+        setShowSuggestions(false);
         handlePerformSearch();
       }
     } else if (e.key === 'Escape') {
@@ -304,7 +315,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
               }}
               onKeyDown={handleKeyDown}
               onFocus={() => {
-                if (suggestions.length > 0) setShowSuggestions(true);
+                if (totalOptions > 0) setShowSuggestions(true);
               }}
               disabled={isSearchDisabled}
               leadingIcon={<Search className="h-4 w-4" />}
@@ -327,7 +338,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
             />
 
             {/* Autocomplete Dropdown list */}
-            {showSuggestions && suggestions.length > 0 && (
+            {showSuggestions && totalOptions > 0 && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-border bg-popover p-1 shadow-md text-popover-foreground">
                 <ul role="listbox" className="max-h-48 overflow-y-auto py-1 text-sm">
                   {suggestions.map((item, idx) => (
@@ -338,7 +349,8 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                       className={`cursor-pointer rounded-md px-3 py-2 text-sm transition-colors flex items-center justify-between ${
                         idx === selectedIndex ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-muted'
                       }`}
-                      onMouseDown={() => {
+                      onMouseDown={(e) => {
+                        e.preventDefault();
                         setInputVal(item);
                         setShowSuggestions(false);
                         handlePerformSearch(item);
@@ -348,6 +360,23 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                       <span className="text-xs text-muted-foreground font-mono">Master DB</span>
                     </li>
                   ))}
+                  {showGetReachOption && (
+                    <li
+                      role="option"
+                      aria-selected={selectedIndex === suggestions.length}
+                      className={`cursor-pointer rounded-md px-3 py-2 text-sm transition-colors flex items-center gap-2 border-t border-border mt-1 pt-2 ${
+                        selectedIndex === suggestions.length ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-muted'
+                      }`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setShowSuggestions(false);
+                        handlePerformSearch(inputVal);
+                      }}
+                    >
+                      <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                      <span className="truncate">Search for <strong className="font-semibold text-foreground">"{inputVal}"</strong></span>
+                    </li>
+                  )}
                 </ul>
               </div>
             )}
