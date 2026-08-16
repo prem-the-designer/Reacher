@@ -47,11 +47,32 @@ export async function getDashboardCards(): Promise<DashboardCardData[]> {
 
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   
-  const { count: loggedInUsers } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'active')
-    .gte('last_login', twentyFourHoursAgo);
+  // ALGORITHM: Find true logged-in users by inspecting latest activity log per user
+  const { data: recentLogs } = await supabase
+    .from('activity_logs')
+    .select('user_id, action_type')
+    .in('action_type', ['login', 'logout'])
+    .gte('timestamp', twentyFourHoursAgo)
+    .order('timestamp', { ascending: false });
+
+  const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+  const adminIds = new Set(admins?.map(a => a.id) || []);
+  
+  let loggedInUsers = 0;
+  if (recentLogs) {
+    const latestStatus = new Map<string, string>();
+    for (const log of recentLogs) {
+      if (log.user_id && !latestStatus.has(log.user_id)) {
+        latestStatus.set(log.user_id, log.action_type);
+      }
+    }
+    
+    for (const [userId, status] of latestStatus.entries()) {
+      if (status === 'login' && !adminIds.has(userId)) {
+        loggedInUsers++;
+      }
+    }
+  }
 
   // 3. Settings (Credits)
   const { data: creditsData } = await supabase

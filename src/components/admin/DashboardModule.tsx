@@ -4,7 +4,6 @@ import { getDashboardCards, getDashboardActivity } from '@/services/adminService
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
-import { supabase } from '@/lib/supabase';
 import { RefreshCw, ArrowRight, AlertCircle, Inbox, Users, CreditCard, UploadCloud } from 'lucide-react';
 
 const CARD_ICONS: Record<string, React.ReactNode> = {
@@ -31,7 +30,6 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   const [cardsLoading, setCardsLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState(false);
-  const [realtimeUsers, setRealtimeUsers] = useState<number | null>(null);
 
   const loadCards = async () => {
     setCardsLoading(true);
@@ -65,27 +63,12 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
     loadCards();
     loadActivity();
 
-    // Real-time Presence tracking
-    const channel = supabase.channel('online-users');
-    
-    channel.on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState();
-      const uniqueUsers = new Set();
-      for (const id in state) {
-        const presences = state[id];
-        // Only count if the user is NOT an admin
-        if (presences.length > 0 && (presences[0] as any).role !== 'admin') {
-          uniqueUsers.add(id); 
-        }
-      }
-      setRealtimeUsers(uniqueUsers.size);
-    });
+    const interval = setInterval(() => {
+      loadCards();
+      loadActivity();
+    }, 5000);
 
-    channel.subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -107,22 +90,15 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
                   <div className="h-3 w-32 rounded bg-muted animate-pulse" />
                 </Card>
               ))
-            : cards.map((card) => {
-                const isUsersCard = card.id === 'card-users';
-                const displayCard = isUsersCard && realtimeUsers !== null 
-                  ? { ...card, value: realtimeUsers, context: 'Active right now' } 
-                  : card;
-                
-                return (
-                  <DashboardCard
-                    key={displayCard.id}
-                    card={displayCard}
-                    icon={CARD_ICONS[displayCard.id]}
-                    onNavigate={onNavigate}
-                    onRetry={loadCards}
-                  />
-                );
-              })}
+            : cards.map((card) => (
+                <DashboardCard
+                  key={card.id}
+                  card={card}
+                  icon={CARD_ICONS[card.id]}
+                  onNavigate={onNavigate}
+                  onRetry={loadCards}
+                />
+              ))}
         </div>
       </section>
 
