@@ -4,7 +4,6 @@ import { getDashboardCards, getDashboardActivity } from '@/services/adminService
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
-import { supabase } from '@/lib/supabase';
 import { RefreshCw, ArrowRight, AlertCircle, Inbox, Users, CreditCard, UploadCloud } from 'lucide-react';
 
 const CARD_ICONS: Record<string, React.ReactNode> = {
