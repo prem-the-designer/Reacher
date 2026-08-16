@@ -273,6 +273,21 @@ export async function updateUser(
   return data as UserRecord;
 }
 
+export async function deleteUser(id: string): Promise<void> {
+  // In Supabase, deleting a profile depends on constraints and auth.
+  // We'll delete the profile here, which could be configured to cascade 
+  // or we might need an edge function to delete auth user.
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting user:', error);
+    throw new Error('Failed to delete user');
+  }
+}
+
 // ── Logs ───────────────────────────────────────────────────────────────────────
 
 export async function getLogs(

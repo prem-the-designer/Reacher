@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import type { UserRecord, Role, UserStatus, PaginationState } from '@/types';
-import { getUsers, addUser, updateUser } from '@/services/adminService';
+import { getUsers, addUser, updateUser, deleteUser } from '@/services/adminService';
 import { DataTable, DataTableColumn, DataTableState } from '@/components/ui/DataTable';
 import { Dialog, DialogFooter } from '@/components/ui/Dialog';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -90,7 +90,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
   // Dialogs
   const [addOpen, setAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
-  const [confirmUser, setConfirmUser] = useState<{ user: UserRecord; action: 'status' | 'role'; newVal: string } | null>(null);
+  const [confirmUser, setConfirmUser] = useState<{ user: UserRecord; action: 'status' | 'role' | 'delete'; newVal?: string } | null>(null);
 
   // Form state (Add)
   const [addForm, setAddForm] = useState<UserFormData>({ name: '', email: '', role: 'analyst' });
@@ -191,9 +191,11 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
     try {
       if (confirmUser.action === 'status') {
         await updateUser(confirmUser.user.id, { status: confirmUser.newVal as UserStatus });
-      } else {
+      } else if (confirmUser.action === 'role') {
         await updateUser(confirmUser.user.id, { role: confirmUser.newVal as Role });
         setEditUser(null);
+      } else if (confirmUser.action === 'delete') {
+        await deleteUser(confirmUser.user.id);
       }
       setConfirmUser(null);
       loadUsers(pagination.page, filter);
@@ -246,6 +248,14 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
             )}
           >
             {user.status === 'active' ? 'Deactivate' : user.status === 'pending' ? 'Approve Account' : 'Activate'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setConfirmUser({ user, action: 'delete' }); setOpenRowMenu(null); }}
+            className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors border-t border-border mt-1 pt-2"
+          >
+            Delete user
           </button>
         </div>
       )}
@@ -435,7 +445,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
       <Dialog
         open={!!confirmUser}
         onClose={() => setConfirmUser(null)}
-        title={confirmUser?.action === 'status' ? 'Change User Status' : 'Change Role'}
+        title={confirmUser?.action === 'status' ? 'Change User Status' : confirmUser?.action === 'role' ? 'Change Role' : 'Delete User'}
         size="md"
       >
         {confirmUser && (
@@ -444,7 +454,9 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
               <p className="text-sm text-foreground">
                 {confirmUser.action === 'status'
                   ? `This will ${confirmUser.newVal === 'inactive' ? 'deactivate' : 'activate'} `
-                  : `This will change the role of `}
+                  : confirmUser.action === 'role' 
+                  ? `This will change the role of ` 
+                  : `Are you sure you want to permanently delete `}
                 <strong>{confirmUser.user.name}</strong>
                 {confirmUser.action === 'status'
                   ? `. ${
@@ -454,21 +466,23 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
                           ? 'They will now be able to access Reacher.' 
                           : 'They will be able to sign in again.'
                     }`
-                  : ` to <strong>${confirmUser.newVal}</strong>. This affects their access level.`}
+                  : confirmUser.action === 'role' 
+                  ? ` to <strong>${confirmUser.newVal}</strong>. This affects their access level.`
+                  : '? This action cannot be undone.'}
               </p>
-              {confirmUser.action === 'status' && confirmUser.newVal === 'inactive' && (
-                <Alert variant="destructive" title="Access will be revoked">
-                  <p className="text-sm">This user will immediately lose access to Reacher.</p>
+              {(confirmUser.action === 'delete' || (confirmUser.action === 'status' && confirmUser.newVal === 'inactive')) && (
+                <Alert variant="destructive" title={confirmUser.action === 'delete' ? 'Permanent Action' : 'Access will be revoked'}>
+                  <p className="text-sm">{confirmUser.action === 'delete' ? 'This user and their profile will be permanently removed from the system.' : 'This user will immediately lose access to Reacher.'}</p>
                 </Alert>
               )}
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setConfirmUser(null)}>Cancel</Button>
               <Button
-                variant={confirmUser.action === 'status' && confirmUser.newVal === 'inactive' ? 'destructive' : 'default'}
+                variant={confirmUser.action === 'delete' || (confirmUser.action === 'status' && confirmUser.newVal === 'inactive') ? 'destructive' : 'default'}
                 onClick={handleConfirmAction}
               >
-                Confirm
+                {confirmUser.action === 'delete' ? 'Delete' : 'Confirm'}
               </Button>
             </DialogFooter>
           </>
