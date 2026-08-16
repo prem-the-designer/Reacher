@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { Select } from '@/components/ui/Select';
 import { cn } from '@/lib/utils';
-import { Search, MoreHorizontal, UserPlus, Loader2 } from 'lucide-react';
+import { Search, MoreHorizontal, Loader2 } from 'lucide-react';
 
 // ── Table columns ─────────────────────────────────────────────────────────────
 
