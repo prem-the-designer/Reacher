@@ -99,8 +99,7 @@ export function App() {
           user_display: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Unknown User',
           action_type: 'login',
           resource_type: 'system',
-          details: 'User logged into the application',
-          metadata: { provider: session.user.app_metadata?.provider || 'email' }
+          details: 'User logged into the application'
         });
       }
     });
