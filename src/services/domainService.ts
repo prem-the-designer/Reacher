@@ -64,7 +64,7 @@ export async function searchMasterDatabase(
   const { data: manualData, error: manualError } = await supabase
     .from('manual_reach_values')
     .select('*')
-    .ilike('domain_url', `%${normalized}%`)
+    .eq('domain_url', normalized)
     .limit(1);
 
   if (manualError) {
@@ -95,7 +95,7 @@ export async function searchMasterDatabase(
   const { data: swData, error: swError } = await supabase
     .from('similarweb_reach')
     .select('*')
-    .ilike('domain_url', `%${normalized}%`)
+    .eq('domain_url', normalized)
     .limit(1);
 
   if (swError) {
