@@ -31,6 +31,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   const [cardsLoading, setCardsLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState(false);
+  const [realtimeUsers, setRealtimeUsers] = useState<number | null>(null);
 
   const loadCards = async () => {
     setCardsLoading(true);
@@ -73,17 +74,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
       for (const id in state) {
         uniqueUsers.add(id); // Because we configured 'presence: { key: currentUser.id }', 'id' is literally the user's ID
       }
-      
-      setCards(prev => prev.map(card => {
-        if (card.id === 'card-users') {
-          return {
-            ...card,
-            value: uniqueUsers.size,
-            context: 'Active right now',
-          };
-        }
-        return card;
-      }));
+      setRealtimeUsers(uniqueUsers.size);
     });
 
     channel.subscribe();
@@ -112,15 +103,22 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
                   <div className="h-3 w-32 rounded bg-muted animate-pulse" />
                 </Card>
               ))
-            : cards.map((card) => (
-                <DashboardCard
-                  key={card.id}
-                  card={card}
-                  icon={CARD_ICONS[card.id]}
-                  onNavigate={onNavigate}
-                  onRetry={loadCards}
-                />
-              ))}
+            : cards.map((card) => {
+                const isUsersCard = card.id === 'card-users';
+                const displayCard = isUsersCard && realtimeUsers !== null 
+                  ? { ...card, value: realtimeUsers, context: 'Active right now' } 
+                  : card;
+                
+                return (
+                  <DashboardCard
+                    key={displayCard.id}
+                    card={displayCard}
+                    icon={CARD_ICONS[displayCard.id]}
+                    onNavigate={onNavigate}
+                    onRetry={loadCards}
+                  />
+                );
+              })}
         </div>
       </section>
 
