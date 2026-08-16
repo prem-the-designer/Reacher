@@ -3,6 +3,7 @@
  * §4.3: shadow-lg + ring, rounded-2xl, max-w container/md–lg, scrim
  */
 import React, { useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 
@@ -96,9 +97,9 @@ export const Dialog: React.FC<DialogProps> = ({
 
   if (!open) return null;
 
-  return (
+  const dialogContent = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="dialog-title"
@@ -154,6 +155,8 @@ export const Dialog: React.FC<DialogProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(dialogContent, document.body) : null;
 };
 
 /** Footer row for dialog actions */
