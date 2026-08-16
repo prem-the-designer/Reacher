@@ -274,13 +274,8 @@ export async function updateUser(
 }
 
 export async function deleteUser(id: string): Promise<void> {
-  // In Supabase, deleting a profile depends on constraints and auth.
-  // We'll delete the profile here, which could be configured to cascade 
-  // or we might need an edge function to delete auth user.
-  const { error } = await supabase
-    .from('profiles')
-    .delete()
-    .eq('id', id);
+  // Use a secure RPC to delete from auth.users (which cascades to profiles)
+  const { error } = await supabase.rpc('delete_user', { target_user_id: id });
 
   if (error) {
     console.error('Error deleting user:', error);
