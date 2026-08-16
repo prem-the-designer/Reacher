@@ -66,7 +66,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   useEffect(() => {
     let isActive = true;
     const trimmedInput = inputVal.trim();
-    
+
     if (trimmedInput.length <= 1) {
       setSuggestions([]);
       setSelectedIndex(-1);
@@ -80,9 +80,9 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
     }, 300); // 300ms debounce
 
     setSelectedIndex(-1);
-    
-    return () => { 
-      isActive = false; 
+
+    return () => {
+      isActive = false;
       clearTimeout(timerId);
     };
   }, [inputVal]);
@@ -252,7 +252,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           record: res.record,
           errorPhase: null,
         }));
-        setToastMessage('Reach Value retrieved');
+        setToastMessage('Reach Value Updated');
       }
     } catch {
       setSearchState((prev) => ({
@@ -421,9 +421,8 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                       key={item}
                       role="option"
                       aria-selected={idx === selectedIndex}
-                      className={`cursor-pointer rounded-md px-3 py-2 text-sm transition-colors flex items-center justify-between ${
-                        idx === selectedIndex ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-muted'
-                      }`}
+                      className={`cursor-pointer rounded-md px-3 py-2 text-sm transition-colors flex items-center justify-between ${idx === selectedIndex ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-muted'
+                        }`}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         setInputVal(item);
@@ -439,9 +438,8 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                     <li
                       role="option"
                       aria-selected={selectedIndex === suggestions.length}
-                      className={`cursor-pointer rounded-md px-3 py-2 text-sm transition-colors flex items-center gap-2 border-t border-border mt-1 pt-2 ${
-                        selectedIndex === suggestions.length ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-muted'
-                      }`}
+                      className={`cursor-pointer rounded-md px-3 py-2 text-sm transition-colors flex items-center gap-2 border-t border-border mt-1 pt-2 ${selectedIndex === suggestions.length ? 'bg-accent text-accent-foreground font-medium' : 'hover:bg-muted'
+                        }`}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         setShowSuggestions(false);
