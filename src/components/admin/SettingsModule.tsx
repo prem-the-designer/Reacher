@@ -347,13 +347,12 @@ export const SettingsModule: React.FC = () => {
         </Card>
       </section>
 
-      {/* ── Data Refresh ──────────────────────────────────────────────── */}
+      {/* ── Data Refresh ────────────────────────────────────────────────
       <section aria-labelledby="data-refresh-heading">
         <Card elevation="xs" className="p-6 space-y-4 max-w-2xl">
           <div>
             <h2 id="data-refresh-heading" className="text-lg font-semibold text-foreground">Data Refresh</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              {/* TODO(backend): only rules the backend supports — none invented */}
               Schedule configuration is managed server-side.
             </p>
           </div>
@@ -389,6 +388,7 @@ export const SettingsModule: React.FC = () => {
           </p>
         </Card>
       </section>
+      */}
     </div>
   );
 };
