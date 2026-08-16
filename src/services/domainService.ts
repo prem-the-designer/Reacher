@@ -175,12 +175,41 @@ async function fakeSimilarwebApi(domain: string) {
 export async function fetchNewDomainReach(
   normalizedDomain: string
 ): Promise<{ record: DomainRecord | null; error: ErrorType | null }> {
+  const startTime = Date.now();
+
+  const logApi = async (status: 'success' | 'failed' | 'rate_limited') => {
+    const duration = Date.now() - startTime;
+    await supabase.from('api_logs').insert([{
+      operation: 'Similarweb Fetch',
+      resource: normalizedDomain,
+      status: status,
+      duration_ms: duration
+    }]);
+  };
+
+  const logActivity = async (action: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('activity_logs').insert([{
+        user_id: user.id,
+        user_display: user.user_metadata?.name || user.email || 'Analyst',
+        action_type: action,
+        resource_type: 'Domain',
+        resource_id: normalizedDomain,
+        details: `Fetched reach for ${normalizedDomain}`
+      }]);
+    }
+  };
 
   // Handle deterministic failure fixtures (§11)
-  if (normalizedDomain === 'rate-limit.test') return { record: null, error: 'rate_limited' };
-  if (normalizedDomain === 'server-error.test') return { record: null, error: 'server_failure' };
-  if (normalizedDomain === 'offline.test') return { record: null, error: 'network_failure' };
-  if (normalizedDomain === 'domain-unavailable.test') return { record: null, error: 'domain_unavailable' };
+  if (normalizedDomain === 'rate-limit.test') {
+    await logApi('rate_limited');
+    return { record: null, error: 'rate_limited' };
+  }
+  if (normalizedDomain === 'server-error.test' || normalizedDomain === 'offline.test' || normalizedDomain === 'domain-unavailable.test') {
+    await logApi('failed');
+    return { record: null, error: 'server_failure' };
+  }
 
   // Call the fake Similarweb API
   const apiResponse = await fakeSimilarwebApi(normalizedDomain);
@@ -250,8 +279,12 @@ export async function fetchNewDomainReach(
   
   if (error) {
     console.error('Failed to update reach:', error);
+    await logApi('failed');
     return { record: null, error: 'database_unavailable' };
   }
+
+  await logApi('success');
+  await logActivity(manualData ? 'Refresh Reach' : 'Fetch Reach');
 
   const newRecord: DomainRecord = {
     id: data.id,
