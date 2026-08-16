@@ -94,14 +94,14 @@ export function App() {
         const { error: profileError } = await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
         if (profileError) console.error('Failed to update last_login:', profileError);
         
-        // Record User Presence in Activity Logs ONLY on actual login
-        if (event === 'SIGNED_IN') {
+        // Record User Presence in Activity Logs on login or returning to app
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           const { error: logError } = await supabase.from('activity_logs').insert({
             user_id: session.user.id,
             user_display: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Unknown User',
             action_type: 'login',
             resource_type: 'system',
-            details: 'User logged into the application'
+            details: event === 'INITIAL_SESSION' ? 'User opened or refreshed the application' : 'User logged into the application'
           });
           if (logError) console.error('Failed to insert activity_log:', logError);
         }
@@ -127,31 +127,40 @@ export function App() {
 
 
 
-  // ── Realtime Presence Tracking ─────────────────────────────────────────────
+  // ── Tab Close Tracking ───────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser) return;
 
-    const channel = supabase.channel('online-users', {
-      config: {
-        presence: {
-          key: currentUser.id,
+    const handleBeforeUnload = () => {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !anonKey) return;
+
+      const payload = {
+        user_id: currentUser.id,
+        user_display: currentUser.name || currentUser.email || 'Unknown User',
+        action_type: 'logout',
+        resource_type: 'system',
+        details: 'User closed the application tab'
+      };
+
+      // Fire-and-forget background fetch that survives tab closure
+      fetch(`${supabaseUrl}/rest/v1/activity_logs`, {
+        method: 'POST',
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
         },
-      },
-    });
-
-    channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.track({
-          user_id: currentUser.id,
-          role: currentUser.role,
-          online_at: new Date().toISOString(),
-        });
-      }
-    });
-
-    return () => {
-      channel.unsubscribe();
+        body: JSON.stringify(payload),
+        keepalive: true
+      }).catch(() => {});
     };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [currentUser]);
 
   const handleSignOutLocally = () => {
