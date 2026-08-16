@@ -203,13 +203,28 @@ export async function fetchNewDomainReach(
     }
   };
 
+  const logReachRequest = async (status: 'fulfilled' | 'failed') => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error } = await supabase.from('reach_requests').insert([{
+        domain_name: normalizedDomain,
+        requested_by: user.id,
+        status: status,
+        fulfilled_at: status === 'fulfilled' ? new Date().toISOString() : null
+      }]);
+      if (error) console.error('Error inserting reach request:', error);
+    }
+  };
+
   // Handle deterministic failure fixtures (§11)
   if (normalizedDomain === 'rate-limit.test') {
     await logApi('rate_limited');
+    await logReachRequest('failed');
     return { record: null, error: 'rate_limited' };
   }
   if (normalizedDomain === 'server-error.test' || normalizedDomain === 'offline.test' || normalizedDomain === 'domain-unavailable.test') {
     await logApi('failed');
+    await logReachRequest('failed');
     return { record: null, error: 'server_failure' };
   }
 
@@ -282,11 +297,13 @@ export async function fetchNewDomainReach(
   if (error) {
     console.error('Failed to update reach:', error);
     await logApi('failed');
+    await logReachRequest('failed');
     return { record: null, error: 'database_unavailable' };
   }
 
   await logApi('success');
   await logActivity(manualData ? 'Refresh Reach' : 'Fetch Reach');
+  await logReachRequest('fulfilled');
 
   const newRecord: DomainRecord = {
     id: data.id,
