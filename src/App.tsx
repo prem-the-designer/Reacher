@@ -127,12 +127,47 @@ export function App() {
 
 
 
+  // ── Realtime Presence Tracking ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const channel = supabase.channel('online-users', {
+      config: {
+        presence: {
+          key: currentUser.id,
+        },
+      },
+    });
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({
+          user_id: currentUser.id,
+          online_at: new Date().toISOString(),
+        });
+      }
+    });
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [currentUser]);
+
   const handleSignOutLocally = () => {
     setCurrentUser(null);
     setAuthState('default');
   };
 
   const handleSignOut = async () => {
+    if (currentUser) {
+      await supabase.from('activity_logs').insert({
+        user_id: currentUser.id,
+        user_display: currentUser.name || currentUser.email || 'Unknown User',
+        action_type: 'logout',
+        resource_type: 'system',
+        details: 'User logged out of the application'
+      });
+    }
     await supabaseSignOut();
     handleSignOutLocally();
   };

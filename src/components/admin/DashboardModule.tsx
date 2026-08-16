@@ -4,6 +4,7 @@ import { getDashboardCards, getDashboardActivity } from '@/services/adminService
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
+import { supabase } from '@/lib/supabase';
 import { RefreshCw, ArrowRight, AlertCircle, Inbox, Users, CreditCard, UploadCloud } from 'lucide-react';
 
 const CARD_ICONS: Record<string, React.ReactNode> = {
@@ -62,6 +63,34 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   useEffect(() => {
     loadCards();
     loadActivity();
+
+    // Real-time Presence tracking
+    const channel = supabase.channel('online-users');
+    
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const uniqueUsers = new Set();
+      for (const id in state) {
+        uniqueUsers.add(id); // Because we configured 'presence: { key: currentUser.id }', 'id' is literally the user's ID
+      }
+      
+      setCards(prev => prev.map(card => {
+        if (card.id === 'card-users') {
+          return {
+            ...card,
+            value: uniqueUsers.size,
+            context: 'Active right now',
+          };
+        }
+        return card;
+      }));
+    });
+
+    channel.subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
   }, []);
 
   return (
