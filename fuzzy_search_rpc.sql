@@ -19,15 +19,21 @@ AS $$
     SELECT 
       domain_name,
       priority_level,
+      CASE 
+        WHEN domain_name ILIKE search_query || '%' THEN 0 -- Starts with (Best)
+        WHEN domain_name ILIKE '%' || search_query || '%' THEN 1 -- Contains (Good)
+        ELSE 2 -- Fuzzy Match (Fallback)
+      END as match_type,
       levenshtein(domain_name, search_query) AS distance
     FROM all_domains
     WHERE length(domain_name) > 0
+      AND (
+        domain_name ILIKE '%' || search_query || '%' 
+        OR levenshtein(domain_name, search_query) <= 3
+      )
   )
   SELECT domain_name, distance
   FROM scored_domains
-  -- Optimization: only consider reasonably close matches or substring matches
-  WHERE distance <= 5 OR domain_name ILIKE '%' || search_query || '%'
-  -- Prioritize distance first, then manual_reach_values over similarweb_reach
-  ORDER BY distance ASC, priority_level ASC, domain_name ASC
+  ORDER BY match_type ASC, distance ASC, priority_level ASC, domain_name ASC
   LIMIT max_results;
 $$;
