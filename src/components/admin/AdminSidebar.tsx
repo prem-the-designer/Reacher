@@ -48,16 +48,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       {/* Wordmark */}
       <div className={cn(
         'flex items-center gap-3 h-14 px-4 border-b border-border shrink-0',
-        collapsed && 'justify-center px-0'
+        collapsed && 'justify-center px-0 overflow-hidden'
       )}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs shadow-xs select-none">
-          RV
-        </div>
-        {!collapsed && (
-          <span className="font-semibold text-base tracking-tight text-foreground truncate">
-            Reacher
-          </span>
-        )}
+        <img src="/logo.png" alt="Reacher Logo" className="h-6 object-contain select-none" />
       </div>
 
       {/* Nav items */}
