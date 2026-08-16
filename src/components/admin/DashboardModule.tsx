@@ -63,36 +63,6 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   useEffect(() => {
     loadCards();
     loadActivity();
-
-    // Real-time Presence tracking
-    const channel = supabase.channel('online-users');
-    
-    channel.on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState();
-      const uniqueUsers = new Set();
-      for (const id in state) {
-        state[id].forEach((presence: any) => {
-          if (presence.user_id) uniqueUsers.add(presence.user_id);
-        });
-      }
-      
-      setCards(prev => prev.map(card => {
-        if (card.id === 'card-users') {
-          return {
-            ...card,
-            value: uniqueUsers.size,
-            context: 'Active right now',
-          };
-        }
-        return card;
-      }));
-    });
-
-    channel.subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
   }, []);
 
   return (

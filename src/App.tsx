@@ -86,8 +86,23 @@ export function App() {
       loadSession(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       loadSession(session);
+
+      if (event === 'SIGNED_IN' && session) {
+        // Update last_login
+        await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', session.user.id);
+        
+        // Record User Presence in Activity Logs
+        await supabase.from('activity_logs').insert({
+          user_id: session.user.id,
+          user_display: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Unknown User',
+          action_type: 'login',
+          resource_type: 'system',
+          details: 'User logged into the application',
+          metadata: { provider: session.user.app_metadata?.provider || 'email' }
+        });
+      }
     });
 
     return () => {
@@ -107,25 +122,7 @@ export function App() {
     }
   };
 
-  // ── Realtime Presence Tracking ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!currentUser) return;
 
-    const channel = supabase.channel('online-users');
-
-    channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.track({
-          user_id: currentUser.id,
-          online_at: new Date().toISOString(),
-        });
-      }
-    });
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [currentUser]);
 
   const handleSignOutLocally = () => {
     setCurrentUser(null);

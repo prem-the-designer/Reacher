@@ -45,11 +45,13 @@ export async function getDashboardCards(): Promise<DashboardCardData[]> {
     .select('*', { count: 'exact', head: true })
     .eq('status', 'active');
 
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  
   const { count: loggedInUsers } = await supabase
     .from('profiles')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'active')
-    .not('last_login', 'is', null);
+    .gte('last_login', twentyFourHoursAgo);
 
   // 3. Settings (Credits)
   const { data: creditsData } = await supabase
