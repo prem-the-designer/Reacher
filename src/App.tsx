@@ -34,14 +34,30 @@ export function App() {
       }
 
       // We have a real Supabase session, fetch the profile
-      const profile = await getUserProfile(session.user.id);
+      let profile = await getUserProfile(session.user.id);
       
       if (!mounted) return;
 
+      // If the user was invited via magic link, they don't have a profile yet. 
+      // Create it now using the metadata attached during the invite.
       if (!profile) {
-        setAuthState('failed');
-        return;
+        const { data, error } = await supabase.from('profiles').insert({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          role: session.user.user_metadata?.role || 'analyst',
+          status: session.user.user_metadata?.status || 'active'
+        }).select().single();
+
+        if (error) {
+          console.error('Failed to auto-create profile:', error);
+          setAuthState('failed');
+          return;
+        }
+        profile = data;
       }
+
+      if (!profile) return;
 
       if (profile.status === 'pending') {
         setAuthState('pending_approval');

@@ -134,12 +134,14 @@ export const UsersModule: React.FC<UsersModuleProps> = ({ currentUserId }) => {
     setAddFormState('submitting');
     setAddFormError(null);
     try {
-      await addUser(addForm);
+      const newUser = await addUser(addForm);
       setAddFormState('success');
       setAddOpen(false);
       setAddForm({ name: '', email: '', role: 'analyst' });
       setAddFormErrors({});
-      loadUsers(1, filter);
+      // Optimistically add the new user to the top of the list
+      setData((prev) => [newUser, ...prev]);
+      setPagination((prev) => ({ ...prev, total: prev.total + 1 }));
     } catch (err) {
       setAddFormState('error');
       setAddFormError(err instanceof Error ? err.message : 'Could not add user. Please try again.');
