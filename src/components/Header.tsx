@@ -21,7 +21,12 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* Identity wordmark */}
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Reacher Logo" className="h-6 object-contain select-none" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs shadow-xs select-none">
+            RV
+          </div>
+          <span className="font-semibold text-lg tracking-tight text-foreground">
+            Reacher
+          </span>
           {currentUser && currentUser.role === 'analyst' && (
             <span className="hidden sm:inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground border border-border">
               Analyst Portal

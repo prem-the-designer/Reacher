@@ -21,6 +21,7 @@ create table if not exists public.manual_reach_values (
 alter table public.manual_reach_values enable row level security;
 create policy "Admins can manage manual reach values" on manual_reach_values for all using (public.is_admin());
 create policy "Analysts can view manual reach values" on manual_reach_values for select using (true); -- Adjust if you want only authenticated users
+create policy "Analysts can update manual reach values" on manual_reach_values for update using (auth.role() = 'authenticated');
 
 
 -- 2. SIMILARWEB REACH FETCH TABLE
@@ -35,3 +36,4 @@ create table if not exists public.similarweb_reach (
 alter table public.similarweb_reach enable row level security;
 create policy "Admins can manage similarweb reach" on similarweb_reach for all using (public.is_admin());
 create policy "Analysts can view similarweb reach" on similarweb_reach for select using (true); -- Adjust if you want only authenticated users
+create policy "Analysts can manage similarweb reach (insert/update)" on similarweb_reach for all using (auth.role() = 'authenticated');

@@ -79,8 +79,8 @@ export const LoginCard: React.FC<LoginCardProps> = ({
       <Card elevation="sm" className="w-full max-w-[448px] p-6 sm:p-8 space-y-6">
         {/* Identity & Header */}
         <div className="space-y-2 text-center">
-          <div className="flex justify-center mb-4 mt-2">
-            <img src="/logo.png" alt="Reacher Logo" className="h-10 object-contain select-none" />
+          <div className="inline-flex items-center justify-center rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-xs mb-1">
+            Reacher
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Sign in
