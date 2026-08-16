@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import type { ImportJob, ExportFormat, ExportStatus, ImportValidationError } from '@/types';
-import { createImportJob, insertManualReachBatch, completeImportJob, failImportJob, exportData } from '@/services/adminService';
+import { createImportJob, insertManualReachBatch, completeImportJob, failImportJob, exportData, getLatestImportJob } from '@/services/adminService';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
@@ -78,6 +78,12 @@ export const ImportExportModule: React.FC = () => {
   const [exportStatus, setExportStatus] = useState<ExportStatus>('ready');
   const [exportFilename, setExportFilename] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  const [latestImport, setLatestImport] = useState<ImportJob | null>(null);
+
+  React.useEffect(() => {
+    getLatestImportJob().then(setLatestImport).catch(console.error);
+  }, [importState.step]);
 
   // ── Import handlers ─────────────────────────────────────────────────────────
 
@@ -260,7 +266,17 @@ export const ImportExportModule: React.FC = () => {
 
       {/* ── IMPORT ───────────────────────────────────────────────────────── */}
       <section aria-labelledby="import-heading">
-        <h2 id="import-heading" className="text-lg font-semibold text-foreground mb-4">Import</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 id="import-heading" className="text-lg font-semibold text-foreground">Import</h2>
+          {latestImport && latestImport.completed_at && (
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-muted/40 border border-border/50">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+              <span className="text-xs font-medium text-muted-foreground">
+                Last updated: <span className="text-foreground">{new Date(latestImport.completed_at).toLocaleString()}</span>
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Step progress */}
         <nav aria-label="Import progress" className="mb-6">

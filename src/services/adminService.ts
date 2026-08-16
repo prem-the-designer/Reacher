@@ -316,6 +316,19 @@ export async function getImportHistory(): Promise<ImportJob[]> {
   return data as ImportJob[];
 }
 
+export async function getLatestImportJob(): Promise<ImportJob | null> {
+  const { data, error } = await supabase
+    .from('import_jobs')
+    .select('*')
+    .eq('status', 'complete')
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+    
+  if (error) throw new Error(error.message);
+  return data as ImportJob | null;
+}
+
 export async function createImportJob(
   filename: string, 
   sizeBytes: number, 
