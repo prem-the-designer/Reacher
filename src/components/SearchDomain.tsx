@@ -12,7 +12,8 @@ import {
   fetchNewDomainReach,
   getAutocompleteDomains,
 } from '@/services/domainService';
-import { Search, X, Loader2, RefreshCw, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Search, X, Loader2, RefreshCw, CheckCircle2, ArrowRight, Info } from 'lucide-react';
+import { Dialog } from './ui/Dialog';
 
 interface SearchDomainProps {
   onSearchStateChange?: (state: SearchState) => void;
@@ -40,6 +41,9 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Tutorial modal state
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // Focus management refs
   const getReachButtonRef = useRef<HTMLButtonElement>(null);
@@ -94,6 +98,52 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
       setTimeout(() => retryButtonRef.current?.focus(), 50);
     }
   }, [searchState.mode]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+
+      if (e.key === 'Escape') {
+        if (showTutorial) {
+          setShowTutorial(false);
+          return;
+        }
+        if (isInputFocused) {
+          (activeEl as HTMLElement).blur();
+        }
+        return;
+      }
+
+      if (isInputFocused) return;
+
+      if (e.key === '/') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      } else if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        setShowTutorial(true);
+      } else if ((e.key === 'c' || e.key === 'C') && searchState.record) {
+        e.preventDefault();
+        const raw = searchState.record.reach_value.toString();
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(raw);
+        } else {
+          const el = document.createElement('textarea');
+          el.value = raw;
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+        }
+        setToastMessage('Reach Value copied');
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [searchState.record, showTutorial]);
 
   // 1. Submit Search flow per §5
   const handlePerformSearch = async (overrideDomain?: string) => {
@@ -294,13 +344,22 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12 space-y-8">
       {/* Page Header */}
-      <div className="space-y-2 text-center sm:text-left">
+      <div className="space-y-2 text-center sm:text-left relative">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Search Domain
         </h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <p className="text-sm text-muted-foreground leading-relaxed pr-10">
           Search for a domain to view its Reach Value or request one for a domain not yet available.
         </p>
+        <button
+          type="button"
+          onClick={() => setShowTutorial(true)}
+          className="absolute top-0 right-0 sm:right-2 p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors flex items-center justify-center"
+          title="Tutorial"
+          aria-label="Tutorial"
+        >
+          <Info className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Search Input Row per §5 */}
@@ -514,7 +573,6 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
             />
           )}
 
-        {/* 6. Error State (§6: Destructive Alert + Verbatim Copy + Retry) */}
         {searchState.mode === 'error' && (
           <Alert variant="destructive" title="Error" className="p-6">
             <p className="text-sm font-medium leading-relaxed">
@@ -535,6 +593,31 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           </Alert>
         )}
       </div>
+
+      <Dialog open={showTutorial} onClose={() => setShowTutorial(false)} title="Keyboard Shortcuts">
+        <div className="space-y-4">
+          <div className="flex justify-between items-center py-2 border-b border-border/50">
+            <span className="text-sm font-medium text-foreground">Exit input field / Close modal</span>
+            <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">Esc</kbd>
+          </div>
+          <div className="flex justify-between items-center py-2 border-b border-border/50">
+            <span className="text-sm font-medium text-foreground">Enter input field</span>
+            <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">/</kbd>
+          </div>
+          <div className="flex justify-between items-center py-2 border-b border-border/50">
+            <span className="text-sm font-medium text-foreground">Fetch / Search Reach Value</span>
+            <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">Enter</kbd>
+          </div>
+          <div className="flex justify-between items-center py-2 border-b border-border/50">
+            <span className="text-sm font-medium text-foreground">Copy Reach Value</span>
+            <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">C</kbd>
+          </div>
+          <div className="flex justify-between items-center py-2">
+            <span className="text-sm font-medium text-foreground">Open Info Modal</span>
+            <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">i</kbd>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 };
