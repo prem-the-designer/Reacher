@@ -177,7 +177,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
       try {
         const res = await searchMasterDatabase(domain);
         if (res.error) {
-           setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: getVerbatimErrorMessage(res.error) }}));
+           setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: getVerbatimErrorMessage(res.error || 'server_failure') }}));
         } else if (res.record) {
            setBulkResults(prev => ({...prev, [domain]: { record: res.record, status: 'found' }}));
         } else {
@@ -198,7 +198,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
       try {
         const res = await fetchNewDomainReach(domain);
         if (res.error) {
-          setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: getVerbatimErrorMessage(res.error) }}));
+          setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: getVerbatimErrorMessage(res.error || 'server_failure') }}));
         } else if (res.record) {
           setBulkResults(prev => ({...prev, [domain]: { record: res.record, status: 'fetched' }}));
         }
