@@ -14,6 +14,9 @@ import {
 } from '@/services/domainService';
 import { Search, X, Loader2, RefreshCw, CheckCircle2, ArrowRight, Info } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
+import { BulkImportModal } from './BulkImportModal';
+import { formatNumber } from '@/lib/utils';
+import { Badge } from './ui/Badge';
 
 interface SearchDomainProps {
   onSearchStateChange?: (state: SearchState) => void;
@@ -44,6 +47,12 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
 
   // Tutorial modal state
   const [showTutorial, setShowTutorial] = useState(false);
+
+  // Bulk Import state
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkDomains, setBulkDomains] = useState<string[]>([]);
+  const [bulkResults, setBulkResults] = useState<Record<string, { record: any | null; status: 'pending' | 'found' | 'not_found' | 'fetching' | 'fetched' | 'error', error?: string }>>({});
+  const [isFetchingMissing, setIsFetchingMissing] = useState(false);
 
   // Focus management refs
   const getReachButtonRef = useRef<HTMLButtonElement>(null);
@@ -149,6 +158,56 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [searchState.record, showTutorial]);
+
+  // Bulk Import Logic
+  const handleBulkImport = async (domains: string[]) => {
+    setShowBulkModal(false);
+    setBulkDomains(domains);
+    setSearchState(prev => ({ ...prev, mode: 'idle' })); // Clear regular search state
+    setInputVal('');
+
+    const initialResults: Record<string, any> = {};
+    domains.forEach(d => {
+      initialResults[d] = { record: null, status: 'pending' };
+    });
+    setBulkResults(initialResults);
+
+    // Process them sequentially for the DB check
+    for (const domain of domains) {
+      try {
+        const res = await searchMasterDatabase(domain);
+        if (res.error) {
+           setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: getVerbatimErrorMessage(res.error) }}));
+        } else if (res.record) {
+           setBulkResults(prev => ({...prev, [domain]: { record: res.record, status: 'found' }}));
+        } else {
+           setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'not_found' }}));
+        }
+      } catch (e) {
+        setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: 'server_failure' }}));
+      }
+    }
+  };
+
+  const handleFetchMissing = async () => {
+    setIsFetchingMissing(true);
+    const missingDomains = bulkDomains.filter(d => bulkResults[d]?.status === 'not_found');
+    
+    for (const domain of missingDomains) {
+      setBulkResults(prev => ({...prev, [domain]: { ...prev[domain], status: 'fetching' }}));
+      try {
+        const res = await fetchNewDomainReach(domain);
+        if (res.error) {
+          setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: getVerbatimErrorMessage(res.error) }}));
+        } else if (res.record) {
+          setBulkResults(prev => ({...prev, [domain]: { record: res.record, status: 'fetched' }}));
+        }
+      } catch (e) {
+        setBulkResults(prev => ({...prev, [domain]: { record: null, status: 'error', error: 'server_failure' }}));
+      }
+    }
+    setIsFetchingMissing(false);
+  };
 
   // 1. Submit Search flow per §5
   const handlePerformSearch = async (overrideDomain?: string) => {
@@ -465,6 +524,16 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           >
             Search
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="h11"
+            onClick={() => setShowBulkModal(true)}
+            disabled={isSearchDisabled}
+            className="w-full sm:w-auto px-6 font-medium whitespace-nowrap"
+          >
+            Import Bulk
+          </Button>
         </form>
 
         {/* Validation Error */}
@@ -488,9 +557,67 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           </div>
         )}
 
-        {/* 1. Empty / Idle State */}
-        {searchState.mode === 'idle' && (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 p-10 text-center space-y-3">
+        {bulkDomains.length > 0 ? (
+          /* Bulk Results Table */
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+               <div>
+                 <h3 className="text-lg font-semibold tracking-tight">Bulk Import Results</h3>
+                 <p className="text-sm text-muted-foreground mt-1">Processed {bulkDomains.length} domains</p>
+               </div>
+               <div className="flex items-center gap-3 w-full sm:w-auto">
+                 {bulkDomains.some(d => bulkResults[d]?.status === 'not_found' || bulkResults[d]?.status === 'error') && (
+                   <Button onClick={handleFetchMissing} disabled={isFetchingMissing} size="sm" className="flex-1 sm:flex-none">
+                     {isFetchingMissing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                     Fetch Missing from Similarweb
+                   </Button>
+                 )}
+                 <Button variant="ghost" onClick={() => { setBulkDomains([]); setBulkResults({}); }} size="sm" className="flex-1 sm:flex-none">
+                    Clear Results
+                 </Button>
+               </div>
+            </div>
+            
+            <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-sm text-left whitespace-nowrap">
+                   <thead className="bg-muted/50 text-muted-foreground border-b border-border">
+                     <tr>
+                       <th className="px-5 py-3.5 font-medium">Domain</th>
+                       <th className="px-5 py-3.5 font-medium">Status</th>
+                       <th className="px-5 py-3.5 font-medium text-right">Reach Value</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-border">
+                     {bulkDomains.map(domain => {
+                       const result = bulkResults[domain];
+                       return (
+                         <tr key={domain} className="hover:bg-muted/30 transition-colors">
+                           <td className="px-5 py-4 font-medium text-foreground">{domain}</td>
+                           <td className="px-5 py-4">
+                              {result?.status === 'pending' && <Badge variant="outline" className="text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin mr-1.5 inline"/>Checking DB</Badge>}
+                              {result?.status === 'found' && <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 dark:text-blue-400 border border-blue-500/20">Found in DB</Badge>}
+                              {result?.status === 'not_found' && <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/5">Unavailable</Badge>}
+                              {result?.status === 'fetching' && <Badge variant="outline" className="text-primary border-primary/30"><Loader2 className="h-3 w-3 animate-spin mr-1.5 inline"/>Fetching API</Badge>}
+                              {result?.status === 'fetched' && <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-600 text-white">Fetched API</Badge>}
+                              {result?.status === 'error' && <Badge variant="destructive" title={result.error}>Error</Badge>}
+                           </td>
+                           <td className="px-5 py-4 text-right tabular-nums font-medium text-foreground">
+                              {result?.record?.reach_value ? formatNumber(result.record.reach_value) : '—'}
+                           </td>
+                         </tr>
+                       );
+                     })}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* 1. Empty / Idle State */}
+            {searchState.mode === 'idle' && (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 p-10 text-center space-y-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
               <Search className="h-6 w-6" />
             </div>
@@ -595,7 +722,15 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
             </div>
           </Alert>
         )}
+          </>
+        )}
       </div>
+
+      <BulkImportModal
+        open={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        onImport={handleBulkImport}
+      />
 
       <Dialog open={showTutorial} onClose={() => setShowTutorial(false)} title="Keyboard Shortcuts">
         <div className="space-y-4">
