@@ -9,16 +9,15 @@ import { supabase } from '@/lib/supabase';
 export function normalizeDomain(rawInput: string): string {
   if (!rawInput) return '';
   let cleaned = rawInput.trim();
-  cleaned = cleaned.replace(/^[a-zA-Z]+:\/\//, '');
+  cleaned = cleaned.replace(/^[a-zA-Z]+:+\/*/, '');
   if (cleaned.includes('@')) {
     cleaned = cleaned.split('@').pop() || '';
   }
-  cleaned = cleaned.split('/')[0];
   cleaned = cleaned.split('?')[0];
   cleaned = cleaned.split('#')[0];
-  cleaned = cleaned.split(':')[0];
+  cleaned = cleaned.replace(/:\d+(?=\/|$)/, '');
   cleaned = cleaned.replace(/^www\./i, '');
-  cleaned = cleaned.replace(/\.$/, '');
+  cleaned = cleaned.replace(/[\/\.]+$/, '');
   return cleaned.toLowerCase();
 }
 
@@ -27,7 +26,7 @@ export function normalizeDomain(rawInput: string): string {
  */
 export function isValidDomain(domain: string): boolean {
   if (!domain) return false;
-  const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+  const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:\/.*)?$/;
   return domainRegex.test(domain);
 }
 
@@ -61,7 +60,7 @@ export async function searchMasterDatabase(
   }
 
   // 1. Search manual_reach_values (Master Database)
-  const { data: manualData, error: manualError } = await supabase
+  let { data: manualData, error: manualError } = await supabase
     .from('manual_reach_values')
     .select('*')
     .eq('domain_url', normalized)
@@ -70,6 +69,20 @@ export async function searchMasterDatabase(
   if (manualError) {
     console.error('Supabase error on manual_reach_values:', manualError);
     return { record: null, error: 'database_unavailable' };
+  }
+
+  if ((!manualData || manualData.length === 0) && normalized.includes('/')) {
+    const rootDomain = normalized.split('/')[0];
+    const { data: fbData, error: fbError } = await supabase
+      .from('manual_reach_values')
+      .select('*')
+      .eq('domain_url', rootDomain)
+      .limit(1);
+    if (fbError) {
+      console.error('Supabase error on manual_reach_values fallback:', fbError);
+      return { record: null, error: 'database_unavailable' };
+    }
+    manualData = fbData;
   }
 
   if (manualData && manualData.length > 0) {
@@ -92,7 +105,7 @@ export async function searchMasterDatabase(
   }
 
   // 2. If not in Master DB, search similarweb_reach
-  const { data: swData, error: swError } = await supabase
+  let { data: swData, error: swError } = await supabase
     .from('similarweb_reach')
     .select('*')
     .eq('domain_url', normalized)
@@ -101,6 +114,21 @@ export async function searchMasterDatabase(
   if (swError) {
     console.error('Supabase error on similarweb_reach:', swError);
     return { record: null, error: 'database_unavailable' };
+  }
+
+  if ((!swData || swData.length === 0) && normalized.includes('/')) {
+    const rootDomain = normalized.split('/')[0];
+    const { data: fbSwData, error: fbSwError } = await supabase
+      .from('similarweb_reach')
+      .select('*')
+      .eq('domain_url', rootDomain)
+      .limit(1);
+    
+    if (fbSwError) {
+       console.error('Supabase error on similarweb_reach fallback:', fbSwError);
+       return { record: null, error: 'database_unavailable' };
+    }
+    swData = fbSwData;
   }
 
   if (swData && swData.length > 0) {
@@ -216,31 +244,42 @@ export async function fetchNewDomainReach(
     }
   };
 
+  const rootDomain = normalizedDomain.split('/')[0];
+
   // Handle deterministic failure fixtures (§11)
-  if (normalizedDomain === 'rate-limit.test') {
+  if (rootDomain === 'rate-limit.test') {
     await logApi('rate_limited');
     await logReachRequest('failed');
     return { record: null, error: 'rate_limited' };
   }
-  if (normalizedDomain === 'server-error.test' || normalizedDomain === 'offline.test' || normalizedDomain === 'domain-unavailable.test') {
+  if (rootDomain === 'server-error.test' || rootDomain === 'offline.test' || rootDomain === 'domain-unavailable.test') {
     await logApi('failed');
     await logReachRequest('failed');
     return { record: null, error: 'server_failure' };
   }
 
-  // Call the fake Similarweb API
-  const apiResponse = await fakeSimilarwebApi(normalizedDomain);
+  // Call the fake Similarweb API with rootDomain
+  const apiResponse = await fakeSimilarwebApi(rootDomain);
   
   // Extract reach value from the Similarweb API JSON structure
   const fetchedReach = apiResponse.visits[0].visits;
 
 
   // Check if it exists in manual_reach_values first
-  const { data: manualData } = await supabase
+  let { data: manualData } = await supabase
     .from('manual_reach_values')
     .select('id, country, media_type, outlet_name')
     .eq('domain_url', normalizedDomain)
     .single();
+
+  if (!manualData && normalizedDomain.includes('/')) {
+    const { data: fbData } = await supabase
+      .from('manual_reach_values')
+      .select('id, country, media_type, outlet_name')
+      .eq('domain_url', rootDomain)
+      .single();
+    manualData = fbData;
+  }
 
   let data, error;
   let dataSource: 'API Fetch' | 'Master Database' = 'API Fetch';
@@ -265,11 +304,11 @@ export async function fetchNewDomainReach(
     recordMediaType = manualData.media_type;
     recordPublication = manualData.outlet_name;
   } else {
-    // Otherwise handle it in similarweb_reach
+    // Otherwise handle it in similarweb_reach using rootDomain
     const { data: existingData } = await supabase
       .from('similarweb_reach')
       .select('id')
-      .eq('domain_url', normalizedDomain)
+      .eq('domain_url', rootDomain)
       .single();
 
     if (existingData) {
@@ -286,7 +325,7 @@ export async function fetchNewDomainReach(
       // Insert new
       const res = await supabase
         .from('similarweb_reach')
-        .insert([{ domain_url: normalizedDomain, reach_value: fetchedReach }])
+        .insert([{ domain_url: rootDomain, reach_value: fetchedReach }])
         .select()
         .single();
       data = res.data;

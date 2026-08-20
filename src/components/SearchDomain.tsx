@@ -195,6 +195,8 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
     
     for (const domain of missingDomains) {
       setBulkResults(prev => ({...prev, [domain]: { ...prev[domain], status: 'fetching' }}));
+      // Add a small delay between requests to avoid rate limits when processing many domains (e.g. 300)
+      await new Promise(r => setTimeout(r, 30));
       try {
         const res = await fetchNewDomainReach(domain);
         if (res.error) {

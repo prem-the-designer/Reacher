@@ -58,8 +58,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ open, onClose,
       const hasHeader = lines[0].toLowerCase().includes('domain');
       const dataLines = hasHeader ? lines.slice(1) : lines;
 
-      if (dataLines.length > 100) {
-        setError(`Rate limit exceeded: You can only import up to 100 outlets per take. File contains ${dataLines.length} valid rows.`);
+      if (dataLines.length > 300) {
+        setError(`Rate limit exceeded: You can only import up to 300 outlets per take. File contains ${dataLines.length} valid rows.`);
         return;
       }
 
