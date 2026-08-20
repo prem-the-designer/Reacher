@@ -588,7 +588,20 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                <div>
                  <h3 className="text-lg font-semibold tracking-tight">Bulk Import Results</h3>
-                 <p className="text-sm text-muted-foreground mt-1">Processed {bulkDomains.length} domains</p>
+                 <p className="text-sm text-muted-foreground mt-1">
+                   Processed {bulkDomains.length} domains
+                   {(() => {
+                     const fetchingCount = bulkDomains.filter(d => bulkResults[d]?.status === 'fetching').length;
+                     const remainingCount = bulkDomains.filter(d => bulkResults[d]?.status === 'not_found').length;
+                     if (isFetchingMissing) {
+                       return <span className="ml-2 text-primary font-medium">| {fetchingCount} currently fetching</span>;
+                     }
+                     if (remainingCount > 0) {
+                       return <span className="ml-2 text-amber-600 dark:text-amber-500 font-medium">| {remainingCount} remaining to fetch</span>;
+                     }
+                     return null;
+                   })()}
+                 </p>
                </div>
                <div className="flex items-center gap-3 w-full sm:w-auto">
                  {bulkDomains.some(d => bulkResults[d]?.status === 'not_found' || bulkResults[d]?.status === 'error') && (
@@ -600,8 +613,18 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                  <Button variant="ghost" onClick={handleDownloadBulkResults} size="sm" className="px-2" title="Download Results" aria-label="Download Results">
                    <Download className="h-4 w-4" />
                  </Button>
-                 <Button variant="ghost" onClick={() => { setBulkDomains([]); setBulkResults({}); }} size="sm" className="flex-1 sm:flex-none">
-                    Clear Results
+                 <Button 
+                   variant="destructive" 
+                   onClick={() => { 
+                     if (window.confirm("Are you sure you want to cancel and clear all results?")) {
+                       setBulkDomains([]); 
+                       setBulkResults({}); 
+                     }
+                   }} 
+                   size="sm" 
+                   className="flex-1 sm:flex-none"
+                 >
+                    Cancel
                  </Button>
                </div>
             </div>
