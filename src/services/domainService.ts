@@ -71,20 +71,6 @@ export async function searchMasterDatabase(
     return { record: null, error: 'database_unavailable' };
   }
 
-  if ((!manualData || manualData.length === 0) && normalized.includes('/')) {
-    const rootDomain = normalized.split('/')[0];
-    const { data: fbData, error: fbError } = await supabase
-      .from('manual_reach_values')
-      .select('*')
-      .eq('domain_url', rootDomain)
-      .limit(1);
-    if (fbError) {
-      console.error('Supabase error on manual_reach_values fallback:', fbError);
-      return { record: null, error: 'database_unavailable' };
-    }
-    manualData = fbData;
-  }
-
   if (manualData && manualData.length > 0) {
     const record = manualData[0];
     return { 
@@ -104,7 +90,6 @@ export async function searchMasterDatabase(
     };
   }
 
-  // 2. If not in Master DB, search similarweb_reach
   let { data: swData, error: swError } = await supabase
     .from('similarweb_reach')
     .select('*')
@@ -114,21 +99,6 @@ export async function searchMasterDatabase(
   if (swError) {
     console.error('Supabase error on similarweb_reach:', swError);
     return { record: null, error: 'database_unavailable' };
-  }
-
-  if ((!swData || swData.length === 0) && normalized.includes('/')) {
-    const rootDomain = normalized.split('/')[0];
-    const { data: fbSwData, error: fbSwError } = await supabase
-      .from('similarweb_reach')
-      .select('*')
-      .eq('domain_url', rootDomain)
-      .limit(1);
-    
-    if (fbSwError) {
-       console.error('Supabase error on similarweb_reach fallback:', fbSwError);
-       return { record: null, error: 'database_unavailable' };
-    }
-    swData = fbSwData;
   }
 
   if (swData && swData.length > 0) {
@@ -304,11 +274,11 @@ export async function fetchNewDomainReach(
     recordMediaType = manualData.media_type;
     recordPublication = manualData.outlet_name;
   } else {
-    // Otherwise handle it in similarweb_reach using rootDomain
+    // Otherwise handle it in similarweb_reach using normalizedDomain
     const { data: existingData } = await supabase
       .from('similarweb_reach')
       .select('id')
-      .eq('domain_url', rootDomain)
+      .eq('domain_url', normalizedDomain)
       .single();
 
     if (existingData) {
@@ -325,7 +295,7 @@ export async function fetchNewDomainReach(
       // Insert new
       const res = await supabase
         .from('similarweb_reach')
-        .insert([{ domain_url: rootDomain, reach_value: fetchedReach }])
+        .insert([{ domain_url: normalizedDomain, reach_value: fetchedReach }])
         .select()
         .single();
       data = res.data;
