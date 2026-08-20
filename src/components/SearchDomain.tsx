@@ -13,7 +13,7 @@ import {
   getAutocompleteDomains,
 } from '@/services/domainService';
 import { Search, X, Loader2, RefreshCw, CheckCircle2, ArrowRight, Info, Download } from 'lucide-react';
-import { Dialog } from './ui/Dialog';
+import { Dialog, DialogFooter } from './ui/Dialog';
 import { BulkImportModal } from './BulkImportModal';
 import { formatNumber } from '@/lib/utils';
 import { Badge } from './ui/Badge';
@@ -53,6 +53,16 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   const [bulkDomains, setBulkDomains] = useState<string[]>([]);
   const [bulkResults, setBulkResults] = useState<Record<string, { record: any | null; status: 'pending' | 'found' | 'not_found' | 'fetching' | 'fetched' | 'error', error?: string }>>({});
   const [isFetchingMissing, setIsFetchingMissing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [pendingSearchQuery, setPendingSearchQuery] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (bulkDomains.length === 0 && pendingSearchQuery !== null) {
+      const query = pendingSearchQuery;
+      setPendingSearchQuery(null);
+      handlePerformSearch(query);
+    }
+  }, [bulkDomains.length, pendingSearchQuery]);
 
   // Focus management refs
   const getReachButtonRef = useRef<HTMLButtonElement>(null);
@@ -236,16 +246,13 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
 
   // 1. Submit Search flow per §5
   const handlePerformSearch = async (overrideDomain?: string) => {
-    if (bulkDomains.length > 0) {
-      if (window.confirm("Do you want to clear the bulk import results and start a new clean search?")) {
-        setBulkDomains([]);
-        setBulkResults({});
-      } else {
-        return; // User aborted the search
-      }
-    }
-
     const rawToSearch = overrideDomain !== undefined ? overrideDomain : inputVal;
+
+    if (bulkDomains.length > 0) {
+      setPendingSearchQuery(rawToSearch);
+      setShowClearConfirm(true);
+      return; 
+    }
     setShowSuggestions(false);
 
     if (!rawToSearch.trim()) {
@@ -622,19 +629,25 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                  <Button variant="ghost" onClick={handleDownloadBulkResults} size="sm" className="px-2" title="Download Results" aria-label="Download Results">
                    <Download className="h-4 w-4" />
                  </Button>
-                 <Button 
-                   variant="destructive" 
-                   onClick={() => { 
-                     if (window.confirm("Are you sure you want to cancel and clear all results?")) {
-                       setBulkDomains([]); 
-                       setBulkResults({}); 
-                     }
-                   }} 
-                   size="sm" 
-                   className="flex-1 sm:flex-none"
-                 >
-                    Cancel
-                 </Button>
+                 {isFetchingMissing ? (
+                   <Button 
+                     variant="destructive" 
+                     onClick={() => setShowClearConfirm(true)} 
+                     size="sm" 
+                     className="flex-1 sm:flex-none"
+                   >
+                      Cancel
+                   </Button>
+                 ) : (
+                   <Button 
+                     variant="ghost" 
+                     onClick={() => setShowClearConfirm(true)} 
+                     size="sm" 
+                     className="flex-1 sm:flex-none"
+                   >
+                      Clear Results
+                   </Button>
+                 )}
                </div>
             </div>
             
@@ -821,6 +834,29 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
             <kbd className="px-2 py-1 bg-muted rounded-md text-xs font-mono text-muted-foreground border border-border">i</kbd>
           </div>
         </div>
+      </Dialog>
+
+      <Dialog 
+        open={showClearConfirm} 
+        onClose={() => { setShowClearConfirm(false); setPendingSearchQuery(null); }} 
+        title="Clear Bulk Results?"
+        description={pendingSearchQuery !== null ? "Do you want to clear the bulk import results and start a new clean search?" : "Are you sure you want to clear all results?"}
+      >
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setShowClearConfirm(false); setPendingSearchQuery(null); }}>
+            Keep Results
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={() => {
+              setBulkDomains([]);
+              setBulkResults({});
+              setShowClearConfirm(false);
+            }}
+          >
+            Yes, Clear Results
+          </Button>
+        </DialogFooter>
       </Dialog>
     </div>
   );
