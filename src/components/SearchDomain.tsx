@@ -236,6 +236,15 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
 
   // 1. Submit Search flow per §5
   const handlePerformSearch = async (overrideDomain?: string) => {
+    if (bulkDomains.length > 0) {
+      if (window.confirm("Do you want to clear the bulk import results and start a new clean search?")) {
+        setBulkDomains([]);
+        setBulkResults({});
+      } else {
+        return; // User aborted the search
+      }
+    }
+
     const rawToSearch = overrideDomain !== undefined ? overrideDomain : inputVal;
     setShowSuggestions(false);
 
@@ -630,7 +639,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
             </div>
             
             <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
-               <div className="overflow-x-auto">
+               <div className="overflow-auto max-h-[400px]">
                  <table className="w-full text-sm text-left whitespace-nowrap">
                    <thead className="bg-muted/50 text-muted-foreground border-b border-border">
                      <tr>
