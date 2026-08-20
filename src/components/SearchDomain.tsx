@@ -12,7 +12,7 @@ import {
   fetchNewDomainReach,
   getAutocompleteDomains,
 } from '@/services/domainService';
-import { Search, X, Loader2, RefreshCw, CheckCircle2, ArrowRight, Info } from 'lucide-react';
+import { Search, X, Loader2, RefreshCw, CheckCircle2, ArrowRight, Info, Download } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { BulkImportModal } from './BulkImportModal';
 import { formatNumber } from '@/lib/utils';
@@ -207,6 +207,29 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
       }
     }
     setIsFetchingMissing(false);
+  };
+
+  const handleDownloadBulkResults = () => {
+    let csvContent = "Domain,Status,Reach Value\n";
+    bulkDomains.forEach(domain => {
+      const result = bulkResults[domain];
+      const status = result?.status || 'unknown';
+      let reach = '';
+      if (typeof result?.record?.reach_value === 'number') {
+        reach = result.record.reach_value.toString();
+      } else if (result?.status === 'error') {
+        reach = '0';
+      }
+      csvContent += `${domain},${status},${reach}\n`;
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "bulk_import_results.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // 1. Submit Search flow per §5
@@ -572,6 +595,9 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                      Fetch Missing from Similarweb
                    </Button>
                  )}
+                 <Button variant="ghost" onClick={handleDownloadBulkResults} size="sm" className="px-2" title="Download Results" aria-label="Download Results">
+                   <Download className="h-4 w-4" />
+                 </Button>
                  <Button variant="ghost" onClick={() => { setBulkDomains([]); setBulkResults({}); }} size="sm" className="flex-1 sm:flex-none">
                     Clear Results
                  </Button>
@@ -603,7 +629,9 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                               {result?.status === 'error' && <Badge variant="destructive" title={result.error}>Error</Badge>}
                            </td>
                            <td className="px-5 py-4 text-right tabular-nums font-medium text-foreground">
-                              {result?.record?.reach_value ? formatNumber(result.record.reach_value) : '—'}
+                              {typeof result?.record?.reach_value === 'number' 
+                                ? formatNumber(result.record.reach_value) 
+                                : result?.status === 'error' ? '0' : '—'}
                            </td>
                          </tr>
                        );
