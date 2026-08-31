@@ -253,9 +253,9 @@ export interface DataRefreshSettings {
 export interface SimilarwebFunctionSettings {
   enabled: boolean;
   country: boolean;
+  media_type: boolean;
+  publication: boolean;
   granularity: boolean;
-  web_source: boolean;
-  metrics: boolean;
 }
 
 export interface SimilarwebSettings {

@@ -128,7 +128,13 @@ export async function searchMasterDatabase(
 /**
  * Simulates the Exact Structure of the Similarweb "Total Traffic & Engagement" API
  */
-async function fakeSimilarwebApi(domain: string, countryEnabled: boolean) {
+async function fakeSimilarwebApi(
+  domain: string, 
+  countryEnabled: boolean, 
+  mediaTypeEnabled: boolean, 
+  publicationEnabled: boolean,
+  granularityEnabled: boolean
+) {
   // Simulate network latency
   await new Promise((resolve) => setTimeout(resolve, 800));
 
@@ -163,8 +169,11 @@ async function fakeSimilarwebApi(domain: string, countryEnabled: boolean) {
         visits: generatedReach
       }
     ],
-    // Mocking an extension to the API if country is enabled
+    // Mocking an extension to the API if properties are enabled
     country: countryEnabled ? 'US' : null,
+    media_type: mediaTypeEnabled ? 'News' : null,
+    publication: publicationEnabled ? 'Similarweb Source' : null,
+    granularity: granularityEnabled ? 'Monthly' : null,
   };
 }
 
@@ -244,13 +253,19 @@ export async function fetchNewDomainReach(
   }
 
   const countryEnabled = swConfig?.country ?? true;
+  const mediaTypeEnabled = swConfig?.media_type ?? true;
+  const publicationEnabled = swConfig?.publication ?? true;
+  const granularityEnabled = swConfig?.granularity ?? true;
 
   // Call the fake Similarweb API with rootDomain
-  const apiResponse = await fakeSimilarwebApi(rootDomain, countryEnabled);
+  const apiResponse = await fakeSimilarwebApi(rootDomain, countryEnabled, mediaTypeEnabled, publicationEnabled, granularityEnabled);
   
   // Extract reach value from the Similarweb API JSON structure
   const fetchedReach = apiResponse.visits[0].visits;
   const fetchedCountry = apiResponse.country;
+  const fetchedMediaType = apiResponse.media_type;
+  const fetchedPublication = apiResponse.publication;
+  const fetchedGranularity = apiResponse.granularity;
 
 
   // Check if it exists in manual_reach_values first
@@ -280,7 +295,13 @@ export async function fetchNewDomainReach(
     // If it was a manual entry, update it in place so searchMasterDatabase finds the fresh value
     const res = await supabase
       .from('manual_reach_values')
-      .update({ reach_value: fetchedReach, country: fetchedCountry || manualData.country, updated_date: new Date().toISOString() })
+      .update({ 
+        reach_value: fetchedReach, 
+        country: fetchedCountry || manualData.country, 
+        media_type: fetchedMediaType || manualData.media_type,
+        outlet_name: fetchedPublication || manualData.outlet_name,
+        updated_date: new Date().toISOString() 
+      })
       .eq('id', manualData.id)
       .select()
       .single();
@@ -289,8 +310,8 @@ export async function fetchNewDomainReach(
     dataSource = 'Master Database';
     provider = 'Manual DBO (Refreshed)';
     recordCountry = fetchedCountry || manualData.country;
-    recordMediaType = manualData.media_type;
-    recordPublication = manualData.outlet_name;
+    recordMediaType = fetchedMediaType || manualData.media_type;
+    recordPublication = fetchedPublication || manualData.outlet_name;
   } else {
     // Otherwise handle it in similarweb_reach using normalizedDomain
     const { data: existingData } = await supabase
@@ -303,23 +324,27 @@ export async function fetchNewDomainReach(
       // Update existing
       const res = await supabase
         .from('similarweb_reach')
-        .update({ reach_value: fetchedReach, country: fetchedCountry, updated_date: new Date().toISOString() })
+        .update({ reach_value: fetchedReach, updated_date: new Date().toISOString() })
         .eq('id', existingData.id)
         .select()
         .single();
       data = res.data;
       error = res.error;
       recordCountry = fetchedCountry;
+      recordMediaType = fetchedMediaType;
+      recordPublication = fetchedPublication;
     } else {
       // Insert new
       const res = await supabase
         .from('similarweb_reach')
-        .insert([{ domain_url: normalizedDomain, reach_value: fetchedReach, country: fetchedCountry }])
+        .insert([{ domain_url: normalizedDomain, reach_value: fetchedReach }])
         .select()
         .single();
       data = res.data;
       error = res.error;
       recordCountry = fetchedCountry;
+      recordMediaType = fetchedMediaType;
+      recordPublication = fetchedPublication;
     }
   }
   
@@ -342,7 +367,7 @@ export async function fetchNewDomainReach(
     country: recordCountry,
     media_type: recordMediaType,
     publication: recordPublication,
-    granularity: null,
+    granularity: fetchedGranularity,
     data_source: dataSource,
     last_updated: data.updated_date,
   };

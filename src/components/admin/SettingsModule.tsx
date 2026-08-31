@@ -41,9 +41,9 @@ export const SettingsModule: React.FC = () => {
   const defaultSimilarwebFunctionSettings: SimilarwebFunctionSettings = {
     enabled: true,
     country: true,
+    media_type: true,
+    publication: true,
     granularity: true,
-    web_source: true,
-    metrics: true,
   };
 
   const getInitialSimilarwebSettings = (saved?: SimilarwebSettings): SimilarwebSettings => {
