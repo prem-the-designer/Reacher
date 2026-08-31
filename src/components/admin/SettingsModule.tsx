@@ -61,7 +61,8 @@ export const SettingsModule: React.FC = () => {
       setSettings(data);
       setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
       setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
-      setTrafficDraft(data.traffic_and_engagement || { country: true, granularity: true });
+      const tData = data.traffic_and_engagement || {};
+      setTrafficDraft({ country: tData.country ?? true, granularity: tData.granularity ?? true });
     } catch {
       setLoadError(true);
     } finally {
@@ -438,7 +439,8 @@ export const SettingsModule: React.FC = () => {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  setTrafficDraft(settings.traffic_and_engagement || { country: true, granularity: true });
+                  const tData = settings.traffic_and_engagement || {};
+                  setTrafficDraft({ country: tData.country ?? true, granularity: tData.granularity ?? true });
                   setHasUnsavedTraffic(false);
                   setTrafficState('idle');
                   setTrafficError(null);
