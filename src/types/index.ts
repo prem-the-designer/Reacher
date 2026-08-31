@@ -251,7 +251,6 @@ export interface DataRefreshSettings {
 }
 
 export interface TrafficAndEngagementSettings {
-  domain_name: boolean;
   country: boolean;
   granularity: boolean;
 }

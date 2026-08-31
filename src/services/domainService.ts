@@ -238,7 +238,6 @@ export async function fetchNewDomainReach(
   const settings = await getSettings();
   const trafficConfig = settings.traffic_and_engagement;
   
-  const domainEnabled = trafficConfig?.domain_name ?? true;
   const countryEnabled = trafficConfig?.country ?? true;
   const granularityEnabled = trafficConfig?.granularity ?? true;
 
@@ -332,7 +331,7 @@ export async function fetchNewDomainReach(
 
   const newRecord: DomainRecord = {
     id: data.id,
-    domain_name: domainEnabled ? normalizedDomain : '—',
+    domain_name: normalizedDomain,
     reach_value: fetchedReach,
     provider: provider,
     country: recordCountry,
