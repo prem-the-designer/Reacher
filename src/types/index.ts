@@ -250,10 +250,38 @@ export interface DataRefreshSettings {
   next_refresh: string | null;
 }
 
+export interface SimilarwebFunctionSettings {
+  enabled: boolean;
+  country: boolean;
+  granularity: boolean;
+  web_source: boolean;
+  metrics: boolean;
+}
+
+export interface SimilarwebSettings {
+  SIMILARWEB_WEBSITES_TRAFFIC_AND_ENGAGEMENT: SimilarwebFunctionSettings;
+  SIMILARWEB_WEBSITES_TRAFFIC_SOURCES: SimilarwebFunctionSettings;
+  SIMILARWEB_WEBSITES_PPC_SPEND: SimilarwebFunctionSettings;
+  SIMILARWEB_SEGMENTS_TRAFFIC_AND_ENGAGEMENT: SimilarwebFunctionSettings;
+  SIMILARWEB_SEGMENTS_TRAFFIC_SOURCES: SimilarwebFunctionSettings;
+  SIMILARWEB_WEBSITES_TOP_GEOGRAPHY: SimilarwebFunctionSettings;
+  SIMILARWEB_KEYWORDS_POSITION_TREND: SimilarwebFunctionSettings;
+  SIMILARWEB_KEYWORD_RESEARCH_BRANDED_DISTRIBUTION_BY_CLICKS: SimilarwebFunctionSettings;
+  SIMILARWEB_KEYWORD_RESEARCH_KEYWORDS_OVERVIEW: SimilarwebFunctionSettings;
+  SIMILARWEB_KEYWORD_RESEARCH_LANDING_PAGES: SimilarwebFunctionSettings;
+  SIMILARWEB_KEYWORD_RESEARCH_SERP_PLAYERS: SimilarwebFunctionSettings;
+  SIMILARWEB_KEYWORD_RESEARCH_WEBSITE_KEYWORDS: SimilarwebFunctionSettings;
+  SIMILARWEB_LEAD_ENRICHMENT: SimilarwebFunctionSettings;
+  SIMILARWEB_CONTACTS_SEARCH: SimilarwebFunctionSettings;
+  SIMILARWEB_CONTACTS_ENRICHMENT: SimilarwebFunctionSettings;
+  SIMILARWEB_AI_OUTREACH: SimilarwebFunctionSettings;
+}
+
 export interface SettingsConfig {
   api: ApiConfigSettings;
   credits: CreditLimiterSettings;
   data_refresh: DataRefreshSettings;
+  similarweb?: SimilarwebSettings;
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────

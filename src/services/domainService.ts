@@ -1,5 +1,6 @@
 import { DomainRecord, ErrorType } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { getSettings } from '@/services/adminService';
 
 /**
  * Normalizes input domain per §5 & §11
@@ -127,7 +128,7 @@ export async function searchMasterDatabase(
 /**
  * Simulates the Exact Structure of the Similarweb "Total Traffic & Engagement" API
  */
-async function fakeSimilarwebApi(domain: string) {
+async function fakeSimilarwebApi(domain: string, countryEnabled: boolean) {
   // Simulate network latency
   await new Promise((resolve) => setTimeout(resolve, 800));
 
@@ -161,7 +162,9 @@ async function fakeSimilarwebApi(domain: string) {
         date: "2023-09-01",
         visits: generatedReach
       }
-    ]
+    ],
+    // Mocking an extension to the API if country is enabled
+    country: countryEnabled ? 'US' : null,
   };
 }
 
@@ -228,11 +231,26 @@ export async function fetchNewDomainReach(
     return { record: null, error: 'server_failure' };
   }
 
+  // Load similarweb settings
+  const settings = await getSettings();
+  const swConfig = settings.similarweb?.SIMILARWEB_WEBSITES_TRAFFIC_AND_ENGAGEMENT;
+  const isEnabled = swConfig?.enabled ?? true;
+  
+  if (!isEnabled) {
+    // If the integration is completely disabled, we fail the fetch
+    await logApi('failed');
+    await logReachRequest('failed');
+    return { record: null, error: 'domain_unavailable' }; 
+  }
+
+  const countryEnabled = swConfig?.country ?? true;
+
   // Call the fake Similarweb API with rootDomain
-  const apiResponse = await fakeSimilarwebApi(rootDomain);
+  const apiResponse = await fakeSimilarwebApi(rootDomain, countryEnabled);
   
   // Extract reach value from the Similarweb API JSON structure
   const fetchedReach = apiResponse.visits[0].visits;
+  const fetchedCountry = apiResponse.country;
 
 
   // Check if it exists in manual_reach_values first
@@ -262,7 +280,7 @@ export async function fetchNewDomainReach(
     // If it was a manual entry, update it in place so searchMasterDatabase finds the fresh value
     const res = await supabase
       .from('manual_reach_values')
-      .update({ reach_value: fetchedReach, updated_date: new Date().toISOString() })
+      .update({ reach_value: fetchedReach, country: fetchedCountry || manualData.country, updated_date: new Date().toISOString() })
       .eq('id', manualData.id)
       .select()
       .single();
@@ -270,7 +288,7 @@ export async function fetchNewDomainReach(
     error = res.error;
     dataSource = 'Master Database';
     provider = 'Manual DBO (Refreshed)';
-    recordCountry = manualData.country;
+    recordCountry = fetchedCountry || manualData.country;
     recordMediaType = manualData.media_type;
     recordPublication = manualData.outlet_name;
   } else {
@@ -281,25 +299,27 @@ export async function fetchNewDomainReach(
       .eq('domain_url', normalizedDomain)
       .single();
 
-    if (existingData) {
+      if (existingData) {
       // Update existing
       const res = await supabase
         .from('similarweb_reach')
-        .update({ reach_value: fetchedReach, updated_date: new Date().toISOString() })
+        .update({ reach_value: fetchedReach, country: fetchedCountry, updated_date: new Date().toISOString() })
         .eq('id', existingData.id)
         .select()
         .single();
       data = res.data;
       error = res.error;
+      recordCountry = fetchedCountry;
     } else {
       // Insert new
       const res = await supabase
         .from('similarweb_reach')
-        .insert([{ domain_url: normalizedDomain, reach_value: fetchedReach }])
+        .insert([{ domain_url: normalizedDomain, reach_value: fetchedReach, country: fetchedCountry }])
         .select()
         .single();
       data = res.data;
       error = res.error;
+      recordCountry = fetchedCountry;
     }
   }
   
