@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import type { SettingsConfig, SimilarwebSettings, SimilarwebFunctionSettings } from '@/types';
+import type { SettingsConfig } from '@/types';
 import { getSettings, saveSettings } from '@/services/adminService';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
-import { Loader2, Eye, EyeOff, CheckCircle2, Lock, ChevronDown, Activity } from 'lucide-react';
+import { Loader2, Eye, EyeOff, CheckCircle2, Lock } from 'lucide-react';
 
 type SectionState = 'idle' | 'editing' | 'saving' | 'success' | 'error';
 
@@ -31,48 +31,6 @@ export const SettingsModule: React.FC = () => {
   // Unsaved-changes guard
   const [hasUnsavedApi, setHasUnsavedApi] = useState(false);
   const [hasUnsavedCredit, setHasUnsavedCredit] = useState(false);
-  const [hasUnsavedSimilarweb, setHasUnsavedSimilarweb] = useState(false);
-
-  // Similarweb Config Section
-  const [similarwebState, setSimilarwebState] = useState<SectionState>('idle');
-  const [similarwebError, setSimilarwebError] = useState<string | null>(null);
-  const [similarwebDraft, setSimilarwebDraft] = useState<SimilarwebSettings | null>(null);
-
-  const defaultSimilarwebFunctionSettings: SimilarwebFunctionSettings = {
-    enabled: true,
-    country: true,
-    media_type: true,
-    publication: true,
-    granularity: true,
-  };
-
-  const getInitialSimilarwebSettings = (saved?: SimilarwebSettings): SimilarwebSettings => {
-    const functions = [
-      'SIMILARWEB_WEBSITES_TRAFFIC_AND_ENGAGEMENT',
-      'SIMILARWEB_WEBSITES_TRAFFIC_SOURCES',
-      'SIMILARWEB_WEBSITES_PPC_SPEND',
-      'SIMILARWEB_SEGMENTS_TRAFFIC_AND_ENGAGEMENT',
-      'SIMILARWEB_SEGMENTS_TRAFFIC_SOURCES',
-      'SIMILARWEB_WEBSITES_TOP_GEOGRAPHY',
-      'SIMILARWEB_KEYWORDS_POSITION_TREND',
-      'SIMILARWEB_KEYWORD_RESEARCH_BRANDED_DISTRIBUTION_BY_CLICKS',
-      'SIMILARWEB_KEYWORD_RESEARCH_KEYWORDS_OVERVIEW',
-      'SIMILARWEB_KEYWORD_RESEARCH_LANDING_PAGES',
-      'SIMILARWEB_KEYWORD_RESEARCH_SERP_PLAYERS',
-      'SIMILARWEB_KEYWORD_RESEARCH_WEBSITE_KEYWORDS',
-      'SIMILARWEB_LEAD_ENRICHMENT',
-      'SIMILARWEB_CONTACTS_SEARCH',
-      'SIMILARWEB_CONTACTS_ENRICHMENT',
-      'SIMILARWEB_AI_OUTREACH',
-    ];
-    
-    const initial = {} as SimilarwebSettings;
-    functions.forEach((fn) => {
-      initial[fn as keyof SimilarwebSettings] = saved?.[fn as keyof SimilarwebSettings] || { ...defaultSimilarwebFunctionSettings };
-    });
-    return initial;
-  };
-
   useEffect(() => {
     loadSettings();
   }, []);
@@ -80,14 +38,14 @@ export const SettingsModule: React.FC = () => {
   // Warn on navigation if there are unsaved changes
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedApi || hasUnsavedCredit || hasUnsavedSimilarweb) {
+      if (hasUnsavedApi || hasUnsavedCredit) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [hasUnsavedApi, hasUnsavedCredit, hasUnsavedSimilarweb]);
+  }, [hasUnsavedApi, hasUnsavedCredit]);
 
   const loadSettings = async () => {
     setLoading(true);
@@ -97,7 +55,6 @@ export const SettingsModule: React.FC = () => {
       setSettings(data);
       setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
       setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
-      setSimilarwebDraft(getInitialSimilarwebSettings(data.similarweb));
     } catch {
       setLoadError(true);
     } finally {
@@ -158,36 +115,6 @@ export const SettingsModule: React.FC = () => {
     }
   };
 
-  const handleSaveSimilarwebConfig = async () => {
-    if (!similarwebDraft) return;
-    setSimilarwebState('saving');
-    setSimilarwebError(null);
-    try {
-      const updated = await saveSettings('similarweb', similarwebDraft);
-      setSettings(updated);
-      setSimilarwebState('success');
-      setHasUnsavedSimilarweb(false);
-      setTimeout(() => setSimilarwebState('idle'), 3000);
-    } catch {
-      setSimilarwebState('error');
-      setSimilarwebError('Could not save Similarweb API configuration. Please try again.');
-    }
-  };
-
-  const handleToggleSimilarwebSetting = (functionName: keyof SimilarwebSettings, setting: keyof SimilarwebFunctionSettings) => {
-    setSimilarwebDraft(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        [functionName]: {
-          ...prev[functionName],
-          [setting]: !prev[functionName][setting]
-        }
-      };
-    });
-    setHasUnsavedSimilarweb(true);
-    setSimilarwebState('editing');
-  };
 
   if (loading) {
     return (
@@ -420,86 +347,7 @@ export const SettingsModule: React.FC = () => {
         </Card>
       </section>
 
-      {/* ── Similarweb Configuration ─────────────────────────────────────────── */}
-      <section aria-labelledby="similarweb-config-heading">
-        <Card elevation="xs" className="p-6 space-y-5 max-w-2xl">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <h2 id="similarweb-config-heading" className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Activity className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                Similarweb Integration
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Configure enabled functions and properties for the Similarweb API fetch. Properties disabled here will not be requested from Similarweb.
-              </p>
-            </div>
-          </div>
 
-          {similarwebState === 'success' && (
-            <div className="flex items-center gap-2 text-sm text-success">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              Similarweb settings updated successfully.
-            </div>
-          )}
-
-          {similarwebError && (
-            <Alert variant="destructive" title="Error">
-              <p className="text-sm">{similarwebError}</p>
-            </Alert>
-          )}
-
-          {similarwebDraft && (
-            <div className="space-y-3">
-              {Object.entries(similarwebDraft).map(([functionName, config]) => (
-                <details key={functionName} className="group rounded-lg border border-border bg-card">
-                  <summary className="flex cursor-pointer list-none items-center justify-between p-4 font-medium [&::-webkit-details-marker]:hidden">
-                    <span className="text-sm truncate pr-4 text-foreground">{functionName}</span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
-                  </summary>
-                  <div className="border-t border-border p-4 bg-muted/10 space-y-3">
-                    {Object.entries(config).map(([setting, enabled]) => (
-                      <label key={setting} className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary focus:ring-offset-background"
-                          checked={enabled as boolean}
-                          onChange={() => handleToggleSimilarwebSetting(functionName as keyof SimilarwebSettings, setting as keyof SimilarwebFunctionSettings)}
-                        />
-                        <span className="text-sm text-foreground capitalize">{setting.replace('_', ' ')}</span>
-                      </label>
-                    ))}
-                  </div>
-                </details>
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              variant="default"
-              onClick={handleSaveSimilarwebConfig}
-              disabled={similarwebState === 'saving' || similarwebState === 'idle'}
-              className="gap-2"
-            >
-              {similarwebState === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              Save configuration
-            </Button>
-            {hasUnsavedSimilarweb && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setSimilarwebDraft(getInitialSimilarwebSettings(settings.similarweb));
-                  setHasUnsavedSimilarweb(false);
-                  setSimilarwebState('idle');
-                  setSimilarwebError(null);
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-          </div>
-        </Card>
-      </section>
 
       {/* ── Data Refresh ────────────────────────────────────────────────
       <section aria-labelledby="data-refresh-heading">
