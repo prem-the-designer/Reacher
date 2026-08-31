@@ -250,10 +250,17 @@ export interface DataRefreshSettings {
   next_refresh: string | null;
 }
 
+export interface TrafficAndEngagementSettings {
+  domain_name: boolean;
+  country: boolean;
+  granularity: boolean;
+}
+
 export interface SettingsConfig {
   api: ApiConfigSettings;
   credits: CreditLimiterSettings;
   data_refresh: DataRefreshSettings;
+  traffic_and_engagement?: TrafficAndEngagementSettings;
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
