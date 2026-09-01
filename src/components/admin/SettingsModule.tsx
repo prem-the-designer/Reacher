@@ -92,6 +92,16 @@ export const SettingsModule: React.FC = () => {
 
       const updated = await saveSettings('api', updates);
       setSettings(updated);
+      
+      // Automatically refresh credits with the new API key
+      if (apiKeyDraft.trim() !== '') {
+        try {
+          await handleRefreshCredits();
+        } catch (e) {
+          console.warn("Auto-refresh credits failed:", e);
+        }
+      }
+
       setApiState('success');
       setHasUnsavedApi(false);
       setApiKeyDraft(''); // clear the input after save

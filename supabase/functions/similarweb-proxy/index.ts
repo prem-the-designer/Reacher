@@ -15,7 +15,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action } = await req.json()
+    const body = await req.json().catch(() => ({}))
+    const { action, domain, countryEnabled, granularityEnabled } = body
     
     // Connect to Supabase to fetch the API key from the settings table
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -30,9 +31,9 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { data: apiSettings, error: dbError } = await supabase
-      .from('settings')
+      .from('app_settings')
       .select('config')
-      .eq('key', 'api')
+      .eq('section', 'api')
       .single()
 
     if (dbError) {
@@ -52,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'check_credits') {
-      const response = await fetch('https://api.similarweb.com/v3/batch/credits', {
+      const response = await fetch(`https://api.similarweb.com/capabilities?api_key=${apiKey}`, {
         method: 'GET',
         headers: {
           'api-key': apiKey,
@@ -65,6 +66,41 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: response.status,
       })
+    }
+
+    if (action === 'fetch_domain') {
+      // Construct Similarweb API endpoint
+      // Using generic total-traffic-and-engagement/visits endpoint
+      // Ensure past month is queried by default
+      const date = new Date();
+      date.setMonth(date.getMonth() - 1);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const dateStr = `${year}-${month}`;
+      
+      const countryStr = countryEnabled ? 'us' : 'world';
+      const granStr = granularityEnabled ? 'monthly' : 'monthly';
+      
+      const endpoint = `https://api.similarweb.com/v1/website/${domain}/total-traffic-and-engagement/visits?api_key=${apiKey}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&main_domain_only=false&format=json`;
+
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'api-key': apiKey,
+          'Accept': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      // Inject requested config for frontend use
+      data.country = countryEnabled ? 'US' : null;
+      data.granularity = granularityEnabled ? 'Monthly' : null;
+      
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: response.status,
+      });
     }
 
     return new Response(

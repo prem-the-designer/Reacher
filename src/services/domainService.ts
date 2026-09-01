@@ -125,188 +125,32 @@ export async function searchMasterDatabase(
   return { record: null, error: null };
 }
 
-/**
- * Simulates the Exact Structure of the Similarweb "Total Traffic & Engagement" API
- */
-async function fakeSimilarwebApi(
-  domain: string,
-  countryEnabled: boolean,
-  granularityEnabled: boolean
-) {
-  // Simulate network latency
-  await new Promise((resolve) => setTimeout(resolve, 800));
-
-  // Generate deterministic reach value for the domain based on string hash, plus some randomness to simulate live data changes
-  let hash = 0;
-  for (let i = 0; i < domain.length; i++) {
-    hash = (hash << 5) - hash + domain.charCodeAt(i);
-    hash |= 0;
-  }
-  const baseReach = Math.abs(hash % 9000000) + 1250000;
-  const generatedReach = baseReach + Math.floor(Math.random() * 50000) - 25000;
-
-  // Exact JSON structure returned by Similarweb V1 API for Visits
-  return {
-    meta: {
-      request: {
-        domain: domain,
-        start_date: "2023-09-01",
-        end_date: "2023-09-30",
-        country: "world",
-        granularity: "monthly",
-        main_domain_only: false,
-        show_verified: false,
-        format: "json"
-      },
-      status: "Success",
-      last_updated: new Date().toISOString()
-    },
-    visits: [
-      {
-        date: "2023-09-01",
-        visits: generatedReach
-      }
-    ],
-    country: countryEnabled ? 'US' : null,
-    granularity: granularityEnabled ? 'Monthly' : null,
-  };
-}
-
-export async function checkSimilarwebCreditThreshold(
-  threshold: number
-): Promise<{ allowed: boolean; remainingCredits?: number; threshold: number }> {
-  console.log(`Credit check initiated via backend proxy. Threshold: ${threshold}`);
-
-  try {
-    const { data, error } = await supabase.functions.invoke('similarweb-proxy', {
-      body: { action: 'check_credits' }
-    });
-
-    if (error || data?.error) {
-      console.log(`Similarweb API request blocked: backend returned error -`, error || data?.error);
-      return { allowed: false, threshold };
+  // Call the proxy to fetch from real Similarweb API
+  const { data: apiResponse, error: proxyError } = await supabase.functions.invoke('similarweb-proxy', {
+    body: {
+      action: 'fetch_domain',
+      domain: rootDomain,
+      countryEnabled,
+      granularityEnabled
     }
+  });
 
-    // Attempting to extract the credits. Using remaining_hits based on Similarweb standard v3 credits endpoint.
-    const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
-
-    if (typeof remainingCredits !== 'number') {
-      console.log(`Similarweb API request blocked: response does not contain a valid remaining-credit value.`);
-      return { allowed: false, threshold };
-    }
-
-    console.log(`Similarweb credits: ${remainingCredits}`);
-    console.log(`Credit threshold: ${threshold}`);
-
-    // Save the dynamically fetched remaining credits back to the database
-    try {
-      await saveSettings('credits', {
-        current_credits: remainingCredits,
-        credits_last_refreshed: new Date().toISOString()
-      });
-    } catch (e) {
-      console.warn("Could not save current_credits to settings:", e);
-    }
-
-    if (remainingCredits <= threshold) {
-      console.log(`Similarweb API request blocked: credit threshold reached.`);
-      return { allowed: false, remainingCredits, threshold };
-    }
-
-    console.log(`Request allowed.`);
-    return { allowed: true, remainingCredits, threshold };
-  } catch (error) {
-    console.log(`Similarweb API request blocked: network/timeout error while checking credits.`, error);
-    return { allowed: false, threshold };
-  }
-}
-
-/**
- * Fetch Reach Value from API for NEW domains only (§2, §6, §11)
- * Triggered strictly when Analyst clicks "Get Reach".
- * Returns Reach Value + "API Fetch" badge + null (renders as '—') for 5 metadata fields.
- */
-export async function fetchNewDomainReach(
-  normalizedDomain: string
-): Promise<{ record: DomainRecord | null; error: ErrorType | null }> {
-  const startTime = Date.now();
-
-  const logApi = async (status: 'success' | 'failed' | 'rate_limited') => {
-    const duration = Date.now() - startTime;
-    const { error } = await supabase.from('api_logs').insert([{
-      operation: 'Similarweb Fetch',
-      resource: normalizedDomain,
-      status: status,
-      duration_ms: duration
-    }]);
-    if (error) console.error('Error inserting api log:', error);
-  };
-
-  const logActivity = async (action: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { error } = await supabase.from('activity_logs').insert([{
-        user_id: user.id,
-        user_display: user.user_metadata?.name || user.email || 'Analyst',
-        action_type: action,
-        resource_type: 'Domain',
-        resource_id: normalizedDomain,
-        details: `Fetched reach for ${normalizedDomain}`
-      }]);
-      if (error) console.error('Error inserting activity log:', error);
-    }
-  };
-
-  const logReachRequest = async (status: 'fulfilled' | 'failed') => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { error } = await supabase.from('reach_requests').insert([{
-        domain_name: normalizedDomain,
-        requested_by: user.id,
-        status: status,
-        fulfilled_at: status === 'fulfilled' ? new Date().toISOString() : null
-      }]);
-      if (error) console.error('Error inserting reach request:', error);
-    }
-  };
-
-  const rootDomain = normalizedDomain.split('/')[0];
-
-  // Handle deterministic failure fixtures (§11)
-  if (rootDomain === 'rate-limit.test') {
-    await logApi('rate_limited');
-    await logReachRequest('failed');
-    return { record: null, error: 'rate_limited' };
-  }
-  if (rootDomain === 'server-error.test' || rootDomain === 'offline.test' || rootDomain === 'domain-unavailable.test') {
+  if (proxyError || apiResponse?.error) {
     await logApi('failed');
     await logReachRequest('failed');
     return { record: null, error: 'server_failure' };
   }
 
-  const settings = await getSettings();
-  const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
-  
-  const creditCheck = await checkSimilarwebCreditThreshold(threshold);
-  
-  if (!creditCheck.allowed) {
-    await logApi('failed');
-    await logReachRequest('failed');
-    return { record: null, error: 'credit_limit_reached' };
-  }
-
-  const trafficConfig = settings.traffic_and_engagement;
-  
-  const countryEnabled = trafficConfig?.country ?? true;
-  const granularityEnabled = trafficConfig?.granularity ?? true;
-
-  // Call the fake Similarweb API with rootDomain
-  const apiResponse = await fakeSimilarwebApi(rootDomain, countryEnabled, granularityEnabled);
-  
   // Extract reach value from the Similarweb API JSON structure
-  const fetchedReach = apiResponse.visits[0].visits;
+  const fetchedReach = apiResponse.visits?.[0]?.visits;
   const fetchedCountry = apiResponse.country;
   const fetchedGranularity = apiResponse.granularity;
+
+  if (fetchedReach === undefined) {
+    await logApi('failed');
+    await logReachRequest('failed');
+    return { record: null, error: 'server_failure' };
+  }
 
 
   // Check if it exists in manual_reach_values first

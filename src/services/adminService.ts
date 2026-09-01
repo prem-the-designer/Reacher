@@ -436,7 +436,7 @@ export async function saveSettings(
   updates: Partial<SettingsConfig[keyof SettingsConfig]>
 ): Promise<SettingsConfig> {
   // First get current config for this section
-  const { data: current } = await supabase.from('app_settings').select('config').eq('section', section).single();
+  const { data: current } = await supabase.from('app_settings').select('config').eq('section', section).maybeSingle();
   const currentConfig = current?.config || {};
 
   const newConfig = { ...currentConfig, ...updates };
