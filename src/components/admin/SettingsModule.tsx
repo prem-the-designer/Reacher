@@ -202,7 +202,7 @@ export const SettingsModule: React.FC = () => {
         <Alert variant="destructive" title="Could not load settings">
           <p className="text-sm">Settings are unavailable. Please try again.</p>
         </Alert>
-        <Button variant="outline" onClick={loadSettings}>Retry</Button>
+        <Button variant="outline" onClick={() => loadSettings()}>Retry</Button>
       </div>
     );
   }
