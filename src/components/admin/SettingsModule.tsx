@@ -61,12 +61,10 @@ export const SettingsModule: React.FC = () => {
     try {
       const data = await getSettings();
       setSettings(data);
-      if (data.api?.credential_value) {
-        setApiKeyDraft(data.api.credential_value);
-      }
       if (data.api?.credential_name) {
         setApiNameDraft(data.api.credential_name);
       }
+      setApiKeyDraft(''); // Never pre-fill the API key
       setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
       setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
       const tData = (data.traffic_and_engagement || {}) as Partial<TrafficAndEngagementSettings>;
@@ -79,22 +77,24 @@ export const SettingsModule: React.FC = () => {
   };
 
   const handleSaveApiConfig = async () => {
-    if (apiState === 'editing' && apiKeyDraft.trim() === '') {
-      setApiError('Enter a credential value to update.');
-      return;
-    }
     setApiState('saving');
     setApiError(null);
     try {
-      const updated = await saveSettings('api', {
+      const updates: any = {
         credential_set: true,
         credential_last_updated: new Date().toISOString(),
-        credential_value: apiKeyDraft,
         credential_name: apiNameDraft || null,
-      });
+      };
+      
+      if (apiKeyDraft.trim() !== '') {
+        updates.credential_value = apiKeyDraft;
+      }
+
+      const updated = await saveSettings('api', updates);
       setSettings(updated);
       setApiState('success');
       setHasUnsavedApi(false);
+      setApiKeyDraft(''); // clear the input after save
       setTimeout(() => setApiState('idle'), 3000);
     } catch {
       setApiState('error');
@@ -319,7 +319,7 @@ export const SettingsModule: React.FC = () => {
                   {apiState === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   Save credential
                 </Button>
-                <Button variant="ghost" onClick={() => { setApiState('idle'); setApiKeyDraft(settings.api?.credential_value || ''); setApiNameDraft(settings.api?.credential_name || ''); setApiError(null); setHasUnsavedApi(false); }}>
+                <Button variant="ghost" onClick={() => { setApiState('idle'); setApiKeyDraft(''); setApiNameDraft(settings.api?.credential_name || ''); setApiError(null); setHasUnsavedApi(false); }}>
                   Cancel
                 </Button>
               </>
