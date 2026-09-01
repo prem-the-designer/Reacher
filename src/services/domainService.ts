@@ -266,14 +266,17 @@ export async function fetchNewDomainReach(
   }
 
   // Extract reach value from the Similarweb API JSON structure
-  const fetchedReach = apiResponse.visits?.[0]?.visits;
+  const fetchedReachRaw = apiResponse.visits?.[0]?.visits;
 
-  if (fetchedReach === undefined || fetchedReach === null || typeof fetchedReach !== 'number') {
+  if (fetchedReachRaw === undefined || fetchedReachRaw === null || typeof fetchedReachRaw !== 'number') {
     console.error('Similarweb fetch returned invalid visits data:', apiResponse);
     await logApi('failed');
     await logReachRequest('failed');
     return { record: null, error: 'server_failure' };
   }
+  
+  // Similarweb can return fractional estimates (e.g. 5701.704). Round to nearest integer for Postgres BIGINT
+  const fetchedReach = Math.round(fetchedReachRaw);
 
 
   // Check if it exists in manual_reach_values first
