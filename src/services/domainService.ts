@@ -286,10 +286,11 @@ export async function fetchNewDomainReach(
     return { record: null, error: 'server_failure' };
   }
 
-  const apiKey = import.meta.env.VITE_SIMILARWEB_API_KEY;
+  const settings = await getSettings();
+  const apiKey = settings.api?.credential_value;
   const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
   
-  const creditCheck = await checkSimilarwebCreditThreshold(apiKey, threshold);
+  const creditCheck = await checkSimilarwebCreditThreshold(apiKey || undefined, threshold);
   
   if (!creditCheck.allowed) {
     await logApi('failed');
@@ -297,7 +298,6 @@ export async function fetchNewDomainReach(
     return { record: null, error: 'credit_limit_reached' };
   }
 
-  const settings = await getSettings();
   const trafficConfig = settings.traffic_and_engagement;
   
   const countryEnabled = trafficConfig?.country ?? true;

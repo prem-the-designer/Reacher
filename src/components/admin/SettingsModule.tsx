@@ -59,6 +59,9 @@ export const SettingsModule: React.FC = () => {
     try {
       const data = await getSettings();
       setSettings(data);
+      if (data.api.credential_value) {
+        setApiKeyDraft(data.api.credential_value);
+      }
       setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
       setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
       const tData = (data.traffic_and_engagement || {}) as Partial<TrafficAndEngagementSettings>;
@@ -83,10 +86,10 @@ export const SettingsModule: React.FC = () => {
       const updated = await saveSettings('api', {
         credential_set: true,
         credential_last_updated: new Date().toISOString(),
+        credential_value: apiKeyDraft,
       });
       setSettings(updated);
       setApiState('success');
-      setApiKeyDraft('');
       setHasUnsavedApi(false);
       setTimeout(() => setApiState('idle'), 3000);
     } catch {

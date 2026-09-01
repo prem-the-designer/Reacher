@@ -231,9 +231,9 @@ export interface Notification {
 // ── Settings ─────────────────────────────────────────────────────────────────
 
 export interface ApiConfigSettings {
-  // NOTE: actual key is never returned to the browser — only metadata
   credential_set: boolean;
   credential_last_updated: string | null;
+  credential_value: string | null;
 }
 
 export interface CreditLimiterSettings {
