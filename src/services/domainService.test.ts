@@ -1,18 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { checkSimilarwebCreditThreshold } from './domainService';
+import { supabase } from '@/lib/supabase';
 
 vi.mock('./adminService', () => ({
   saveSettings: vi.fn(),
   getSettings: vi.fn(),
 }));
 
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    from: vi.fn(),
+    functions: {
+      invoke: vi.fn(),
+    }
+  }
+}));
+
 describe('checkSimilarwebCreditThreshold', () => {
-  const defaultApiKey = 'test-api-key';
 
   beforeEach(() => {
-    global.fetch = vi.fn();
-    // mock console.log to avoid spamming the test output
     vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -20,109 +28,119 @@ describe('checkSimilarwebCreditThreshold', () => {
   });
 
   it('should allow request if credits are above threshold (using remaining_hits)', async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ remaining_hits: 150 })
-    } as unknown as Response);
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { remaining_hits: 150 },
+      error: null
+    } as any);
 
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 100);
-    
+    const result = await checkSimilarwebCreditThreshold(100);
+
     expect(result.allowed).toBe(true);
     expect(result.remainingCredits).toBe(150);
-    expect(result.threshold).toBe(100);
-    expect(global.fetch).toHaveBeenCalledWith('https://api.similarweb.com/v3/batch/credits', {
-      method: 'GET',
-      headers: {
-        'api-key': defaultApiKey,
-        'Accept': 'application/json',
-      }
-    });
   });
 
   it('should allow request if credits are above threshold (using remaining_credits)', async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ remaining_credits: 200 })
-    } as unknown as Response);
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { remaining_credits: 200 },
+      error: null
+    } as any);
 
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 100);
-    
+    const result = await checkSimilarwebCreditThreshold(100);
+
     expect(result.allowed).toBe(true);
     expect(result.remainingCredits).toBe(200);
   });
 
-  it('should block request if credits are below threshold', async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ remaining_hits: 50 })
-    } as unknown as Response);
+  it('should allow request if credits are above threshold (using credits_remaining)', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { credits_remaining: 101 },
+      error: null
+    } as any);
 
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 100);
-    
-    expect(result.allowed).toBe(false);
-    expect(result.remainingCredits).toBe(50);
+    const result = await checkSimilarwebCreditThreshold(100);
+
+    expect(result.allowed).toBe(true);
+    expect(result.remainingCredits).toBe(101);
   });
 
-  it('should block request if credits are exactly equal to threshold', async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ remaining_hits: 100 })
-    } as unknown as Response);
+  it('should block request if credits are equal to threshold', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { remaining_hits: 100 },
+      error: null
+    } as any);
 
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 100);
-    
+    const result = await checkSimilarwebCreditThreshold(100);
+
     expect(result.allowed).toBe(false);
     expect(result.remainingCredits).toBe(100);
   });
 
-  it('should block request if API key is missing', async () => {
-    const result = await checkSimilarwebCreditThreshold(undefined, 100);
-    
+  it('should block request if credits are below threshold', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { remaining_hits: 50 },
+      error: null
+    } as any);
+
+    const result = await checkSimilarwebCreditThreshold(100);
+
     expect(result.allowed).toBe(false);
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(result.remainingCredits).toBe(50);
   });
 
-  it('should block request if credit endpoint fails (HTTP error)', async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 401
-    } as unknown as Response);
+  it('should block request if supabase invoke fails', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: null,
+      error: new Error('Network error')
+    } as any);
 
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 100);
-    
-    expect(result.allowed).toBe(false);
-  });
+    const result = await checkSimilarwebCreditThreshold(100);
 
-  it('should block request if response contains invalid/missing credit value', async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ unexpected_field: 'no credits here' })
-    } as unknown as Response);
-
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 100);
-    
     expect(result.allowed).toBe(false);
   });
 
-  it('should block request on network/timeout error', async () => {
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'));
+  it('should block request if the backend returns an error message', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { error: 'Invalid API key' },
+      error: null
+    } as any);
 
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 100);
-    
+    const result = await checkSimilarwebCreditThreshold(100);
+
     expect(result.allowed).toBe(false);
   });
 
-  it('should use custom threshold configuration', async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ remaining_hits: 10 })
-    } as unknown as Response);
+  it('should block request if no credit field is found in response', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { foo: 'bar' },
+      error: null
+    } as any);
 
-    // Custom threshold is 5, remaining is 10 -> should be allowed
-    const result = await checkSimilarwebCreditThreshold(defaultApiKey, 5);
-    
+    const result = await checkSimilarwebCreditThreshold(100);
+
+    expect(result.allowed).toBe(false);
+  });
+
+  it('should block request if the credit field is not a number', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { remaining_hits: '150' }, // String instead of number
+      error: null
+    } as any);
+
+    const result = await checkSimilarwebCreditThreshold(100);
+
+    expect(result.allowed).toBe(false);
+  });
+
+  it('should properly configure default threshold logic independently', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: { remaining_hits: 10 },
+      error: null
+    } as any);
+
+    // Using a different threshold
+    const result = await checkSimilarwebCreditThreshold(5);
+
     expect(result.allowed).toBe(true);
     expect(result.remainingCredits).toBe(10);
-    expect(result.threshold).toBe(5);
   });
 });

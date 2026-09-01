@@ -17,14 +17,6 @@ export const SettingsModule: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  // API Config section
-  const [apiState, setApiState] = useState<SectionState>('idle');
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [apiNameDraft, setApiNameDraft] = useState('');
-  const [apiKeyDraft, setApiKeyDraft] = useState('');
-  const [showKey, setShowKey] = useState(false);
-  const [refreshingCredits, setRefreshingCredits] = useState(false);
-
   // Credit Limiter section
   const [creditState, setCreditState] = useState<SectionState>('idle');
   const [creditError, setCreditError] = useState<string | null>(null);
@@ -32,7 +24,6 @@ export const SettingsModule: React.FC = () => {
   const [criticalDraft, setCriticalDraft] = useState('');
 
   // Unsaved-changes guard
-  const [hasUnsavedApi, setHasUnsavedApi] = useState(false);
   const [hasUnsavedCredit, setHasUnsavedCredit] = useState(false);
   const [hasUnsavedTraffic, setHasUnsavedTraffic] = useState(false);
 
@@ -47,14 +38,14 @@ export const SettingsModule: React.FC = () => {
   // Warn on navigation if there are unsaved changes
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedApi || hasUnsavedCredit || hasUnsavedTraffic) {
+      if (hasUnsavedCredit || hasUnsavedTraffic) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [hasUnsavedApi, hasUnsavedCredit, hasUnsavedTraffic]);
+  }, [hasUnsavedCredit, hasUnsavedTraffic]);
 
   const loadSettings = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -62,12 +53,6 @@ export const SettingsModule: React.FC = () => {
     try {
       const data = await getSettings();
       setSettings(data);
-      if (data.api.credential_value) {
-        setApiKeyDraft(data.api.credential_value);
-      }
-      if (data.api.credential_name) {
-        setApiNameDraft(data.api.credential_name);
-      }
       setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
       setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
       const tData = (data.traffic_and_engagement || {}) as Partial<TrafficAndEngagementSettings>;
@@ -79,45 +64,12 @@ export const SettingsModule: React.FC = () => {
     }
   };
 
-  const handleSaveApiConfig = async () => {
-    if (apiState === 'editing' && apiKeyDraft.trim() === '') {
-      setApiError('Enter a credential value to update.');
-      return;
-    }
-    setApiState('saving');
-    setApiError(null);
-    try {
-      const updated = await saveSettings('api', {
-        credential_set: true,
-        credential_last_updated: new Date().toISOString(),
-        credential_value: apiKeyDraft,
-        credential_name: apiNameDraft || null,
-      });
-      setSettings(updated);
-      setApiState('success');
-      setHasUnsavedApi(false);
-      
-      // Auto-refresh credits on save
-      const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
-      await checkSimilarwebCreditThreshold(apiKeyDraft, threshold);
-      await loadSettings(true);
-
-      setTimeout(() => setApiState('idle'), 3000);
-    } catch {
-      setApiState('error');
-      setApiError('Could not save API configuration. Please try again.');
-    }
-  };
-
   const handleRefreshCredits = async () => {
     setRefreshingCredits(true);
     try {
-      const apiKey = settings?.api.credential_value;
       const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
-      if (apiKey) {
-        await checkSimilarwebCreditThreshold(apiKey, threshold);
-        await loadSettings(true);
-      }
+      await checkSimilarwebCreditThreshold(threshold);
+      await loadSettings(true);
     } finally {
       setRefreshingCredits(false);
     }
@@ -216,125 +168,6 @@ export const SettingsModule: React.FC = () => {
         <p className="text-sm text-muted-foreground mt-1">API, credits and data refresh configuration</p>
       </div>
 
-      {/* ── API Configuration ─────────────────────────────────────────── */}
-      <section aria-labelledby="api-config-heading">
-        <Card elevation="xs" className="p-6 space-y-5 max-w-2xl">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <h2 id="api-config-heading" className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Lock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                API Configuration
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Credentials are stored server-side and never returned to the browser.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <p className="text-xs font-medium text-muted-foreground mb-2">Credential Status</p>
-            {settings.api.credential_set ? (
-              <div className="space-y-1.5">
-                <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                  {settings.api.credential_name || 'Unnamed Key'}
-                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                </p>
-                <p className="text-xs font-mono text-muted-foreground bg-background/50 w-fit px-2 py-0.5 rounded border border-border/50">
-                  ••••••••••••••••••••••••••••••
-                </p>
-                {settings.api.credential_last_updated && (
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    Last updated: {new Date(settings.api.credential_last_updated).toLocaleString()}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-foreground">○ Not configured</p>
-            )}
-          </div>
-
-          {apiState === 'success' && (
-            <div className="flex items-center gap-2 text-sm text-success">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              Credential updated successfully.
-            </div>
-          )}
-
-          {apiError && (
-            <Alert variant="destructive" title="Error">
-              <p className="text-sm">{apiError}</p>
-            </Alert>
-          )}
-
-          {/* Update credential — masked input, never echoed */}
-          {(apiState === 'editing' || apiState === 'error') && (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="api-name-input" className="block text-xs font-medium text-muted-foreground mb-1">
-                  Credential Name (Optional)
-                </label>
-                <Input
-                  id="api-name-input"
-                  type="text"
-                  value={apiNameDraft}
-                  onChange={(e) => { setApiNameDraft(e.target.value); setHasUnsavedApi(true); }}
-                  placeholder="e.g. Production Key"
-                />
-              </div>
-              <div>
-                <label htmlFor="api-key-input" className="block text-xs font-medium text-muted-foreground mb-1">
-                  New Credential Value
-                </label>
-              <div className="relative">
-                <Input
-                  id="api-key-input"
-                  type={showKey ? 'text' : 'password'}
-                  value={apiKeyDraft}
-                  onChange={(e) => { setApiKeyDraft(e.target.value); setHasUnsavedApi(true); }}
-                  placeholder="Paste new credential…"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((v) => !v)}
-                  aria-label={showKey ? 'Hide credential' : 'Show credential'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showKey
-                    ? <EyeOff className="h-4 w-4" aria-hidden="true" />
-                    : <Eye className="h-4 w-4" aria-hidden="true" />}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                This will replace the current credential. The value is transmitted securely and never stored client-side.
-              </p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            {apiState === 'idle' && (
-              <Button variant="outline" onClick={() => setApiState('editing')}>
-                Update Credential
-              </Button>
-            )}
-            {(apiState === 'editing' || apiState === 'error' || apiState === 'saving') && (
-              <>
-                <Button
-                  variant="default"
-                  onClick={handleSaveApiConfig}
-                  disabled={apiState === 'saving'}
-                  className="gap-2"
-                >
-                  {apiState === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                  Save credential
-                </Button>
-                <Button variant="ghost" onClick={() => { setApiState('idle'); setApiKeyDraft(settings.api.credential_value || ''); setApiNameDraft(settings.api.credential_name || ''); setApiError(null); setHasUnsavedApi(false); }}>
-                  Cancel
-                </Button>
-              </>
-            )}
-          </div>
         </Card>
       </section>
 
@@ -369,7 +202,7 @@ export const SettingsModule: React.FC = () => {
               size="sm" 
               className="gap-2" 
               onClick={handleRefreshCredits}
-              disabled={refreshingCredits || !settings.api.credential_set}
+              disabled={refreshingCredits}
             >
               <RefreshCw className={`h-4 w-4 ${refreshingCredits ? 'animate-spin' : ''}`} />
               Refresh

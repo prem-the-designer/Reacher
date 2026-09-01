@@ -173,32 +173,20 @@ async function fakeSimilarwebApi(
 }
 
 export async function checkSimilarwebCreditThreshold(
-  apiKey: string | undefined,
   threshold: number
 ): Promise<{ allowed: boolean; remainingCredits?: number; threshold: number }> {
-  console.log(`Credit check initiated. Threshold: ${threshold}`);
-
-  if (!apiKey) {
-    console.log(`Similarweb API request blocked: missing API key.`);
-    return { allowed: false, threshold };
-  }
+  console.log(`Credit check initiated via backend proxy. Threshold: ${threshold}`);
 
   try {
-    const response = await fetch('https://api.similarweb.com/v3/batch/credits', {
-      method: 'GET',
-      headers: {
-        'api-key': apiKey,
-        'Accept': 'application/json',
-      },
+    const { data, error } = await supabase.functions.invoke('similarweb-proxy', {
+      body: { action: 'check_credits' }
     });
 
-    if (!response.ok) {
-      console.log(`Similarweb API request blocked: credit endpoint returned HTTP ${response.status}.`);
+    if (error || data?.error) {
+      console.log(`Similarweb API request blocked: backend returned error -`, error || data?.error);
       return { allowed: false, threshold };
     }
 
-    const data = await response.json();
-    
     // Attempting to extract the credits. Using remaining_hits based on Similarweb standard v3 credits endpoint.
     const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
 
@@ -228,7 +216,7 @@ export async function checkSimilarwebCreditThreshold(
     console.log(`Request allowed.`);
     return { allowed: true, remainingCredits, threshold };
   } catch (error) {
-    console.log(`Similarweb API request blocked: network/timeout error while checking credits.`);
+    console.log(`Similarweb API request blocked: network/timeout error while checking credits.`, error);
     return { allowed: false, threshold };
   }
 }
