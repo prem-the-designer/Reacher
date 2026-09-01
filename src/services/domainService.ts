@@ -281,14 +281,14 @@ export async function fetchNewDomainReach(
     .from('manual_reach_values')
     .select('id, country, media_type, outlet_name')
     .eq('domain_url', normalizedDomain)
-    .single();
+    .maybeSingle();
 
   if (!manualData && normalizedDomain.includes('/')) {
     const { data: fbData } = await supabase
       .from('manual_reach_values')
       .select('id, country, media_type, outlet_name')
       .eq('domain_url', rootDomain)
-      .single();
+      .maybeSingle();
     manualData = fbData;
   }
 
@@ -320,7 +320,7 @@ export async function fetchNewDomainReach(
       .from('similarweb_reach')
       .select('id')
       .eq('domain_url', normalizedDomain)
-      .single();
+      .maybeSingle();
 
       if (existingData) {
       // Update existing
