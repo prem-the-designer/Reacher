@@ -231,17 +231,25 @@ export const SettingsModule: React.FC = () => {
             </div>
           </div>
 
-          {/* Credential status — never shows the actual key */}
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Credential Status</p>
-            <p className="text-sm text-foreground">
-              {settings.api.credential_set ? '● Set' : '○ Not configured'}
-              {settings.api.credential_name ? ` (${settings.api.credential_name})` : ''}
-            </p>
-            {settings.api.credential_last_updated && (
-              <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
-                Last updated: {new Date(settings.api.credential_last_updated).toLocaleString()}
-              </p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Credential Status</p>
+            {settings.api.credential_set ? (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                  {settings.api.credential_name || 'Unnamed Key'}
+                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                </p>
+                <p className="text-xs font-mono text-muted-foreground bg-background/50 w-fit px-2 py-0.5 rounded border border-border/50">
+                  ••••••••••••••••••••••••••••••
+                </p>
+                {settings.api.credential_last_updated && (
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    Last updated: {new Date(settings.api.credential_last_updated).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-foreground">○ Not configured</p>
             )}
           </div>
 
