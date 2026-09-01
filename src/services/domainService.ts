@@ -265,7 +265,8 @@ export async function fetchNewDomainReach(
     }
   });
 
-  if (proxyError || apiResponse?.error) {
+  if (proxyError || apiResponse?.error || apiResponse?.meta?.status === 'Error') {
+    console.error('Similarweb fetch failed:', proxyError || apiResponse?.meta?.error_message || apiResponse);
     await logApi('failed');
     await logReachRequest('failed');
     return { record: null, error: 'server_failure' };
@@ -277,6 +278,7 @@ export async function fetchNewDomainReach(
   const fetchedGranularity = apiResponse.meta?.request?.granularity;
 
   if (fetchedReach === undefined) {
+    console.error('Similarweb fetch returned no visits array:', apiResponse);
     await logApi('failed');
     await logReachRequest('failed');
     return { record: null, error: 'server_failure' };

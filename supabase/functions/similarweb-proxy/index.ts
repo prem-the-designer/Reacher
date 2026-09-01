@@ -93,9 +93,11 @@ Deno.serve(async (req) => {
 
       const data = await response.json();
       
+      // We always return 200 OK to Supabase Client so it doesn't throw a FunctionsHttpError.
+      // The frontend will check data.meta.status or data.error instead.
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: response.status,
+        status: 200,
       });
     }
 
