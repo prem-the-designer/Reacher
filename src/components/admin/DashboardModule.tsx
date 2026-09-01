@@ -219,7 +219,7 @@ const DashboardCard: React.FC<DashboardCardProps> = ({ card, icon, onNavigate, o
             ? typeof card.value === 'number'
               ? card.value.toLocaleString()
               : card.value
-            : '—'}
+            : '(-)'}
         </span>
         {card.badgeLabel && card.badgeVariant && (
           <StatusBadge status={card.badgeLabel} />

@@ -306,7 +306,7 @@ export const SettingsModule: React.FC = () => {
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1">
             <p className="text-xs font-medium text-muted-foreground">Current Credits</p>
             <p className="text-3xl font-semibold tabular-nums text-foreground">
-              {settings.credits.current_credits?.toLocaleString() ?? '—'}
+              {settings.credits.current_credits?.toLocaleString() ?? '(-)'}
             </p>
             {settings.credits.credits_last_refreshed && (
               <p className="text-xs text-muted-foreground tabular-nums">
