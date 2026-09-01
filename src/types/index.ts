@@ -234,6 +234,7 @@ export interface ApiConfigSettings {
   credential_set: boolean;
   credential_last_updated: string | null;
   credential_value: string | null;
+  credential_name: string | null;
 }
 
 export interface CreditLimiterSettings {

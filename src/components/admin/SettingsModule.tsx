@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import type { SettingsConfig, TrafficAndEngagementSettings } from '@/types';
 import { getSettings, saveSettings } from '@/services/adminService';
+import { checkSimilarwebCreditThreshold } from '@/services/domainService';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
-import { Loader2, Eye, EyeOff, CheckCircle2, Lock, Activity } from 'lucide-react';
+import { Loader2, Eye, EyeOff, CheckCircle2, Lock, Activity, RefreshCw } from 'lucide-react';
 
 type SectionState = 'idle' | 'editing' | 'saving' | 'success' | 'error';
 
@@ -19,8 +20,10 @@ export const SettingsModule: React.FC = () => {
   // API Config section
   const [apiState, setApiState] = useState<SectionState>('idle');
   const [apiError, setApiError] = useState<string | null>(null);
+  const [apiNameDraft, setApiNameDraft] = useState('');
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [refreshingCredits, setRefreshingCredits] = useState(false);
 
   // Credit Limiter section
   const [creditState, setCreditState] = useState<SectionState>('idle');
@@ -62,6 +65,9 @@ export const SettingsModule: React.FC = () => {
       if (data.api.credential_value) {
         setApiKeyDraft(data.api.credential_value);
       }
+      if (data.api.credential_name) {
+        setApiNameDraft(data.api.credential_name);
+      }
       setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
       setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
       const tData = (data.traffic_and_engagement || {}) as Partial<TrafficAndEngagementSettings>;
@@ -74,7 +80,6 @@ export const SettingsModule: React.FC = () => {
   };
 
   const handleSaveApiConfig = async () => {
-    // API key validation: secrets go server-side — never echoed back
     if (apiState === 'editing' && apiKeyDraft.trim() === '') {
       setApiError('Enter a credential value to update.');
       return;
@@ -82,19 +87,39 @@ export const SettingsModule: React.FC = () => {
     setApiState('saving');
     setApiError(null);
     try {
-      // We don't send the key value to any client state — only signal that it was updated
       const updated = await saveSettings('api', {
         credential_set: true,
         credential_last_updated: new Date().toISOString(),
         credential_value: apiKeyDraft,
+        credential_name: apiNameDraft || null,
       });
       setSettings(updated);
       setApiState('success');
       setHasUnsavedApi(false);
+      
+      // Auto-refresh credits on save
+      const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
+      await checkSimilarwebCreditThreshold(apiKeyDraft, threshold);
+      await loadSettings();
+
       setTimeout(() => setApiState('idle'), 3000);
     } catch {
       setApiState('error');
       setApiError('Could not save API configuration. Please try again.');
+    }
+  };
+
+  const handleRefreshCredits = async () => {
+    setRefreshingCredits(true);
+    try {
+      const apiKey = settings?.api.credential_value;
+      const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
+      if (apiKey) {
+        await checkSimilarwebCreditThreshold(apiKey, threshold);
+        await loadSettings();
+      }
+    } finally {
+      setRefreshingCredits(false);
     }
   };
 
@@ -211,6 +236,7 @@ export const SettingsModule: React.FC = () => {
             <p className="text-xs font-medium text-muted-foreground mb-1">Credential Status</p>
             <p className="text-sm text-foreground">
               {settings.api.credential_set ? '● Set' : '○ Not configured'}
+              {settings.api.credential_name ? ` (${settings.api.credential_name})` : ''}
             </p>
             {settings.api.credential_last_updated && (
               <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
@@ -234,10 +260,23 @@ export const SettingsModule: React.FC = () => {
 
           {/* Update credential — masked input, never echoed */}
           {(apiState === 'editing' || apiState === 'error') && (
-            <div>
-              <label htmlFor="api-key-input" className="block text-xs font-medium text-muted-foreground mb-1">
-                New Credential Value
-              </label>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="api-name-input" className="block text-xs font-medium text-muted-foreground mb-1">
+                  Credential Name (Optional)
+                </label>
+                <Input
+                  id="api-name-input"
+                  type="text"
+                  value={apiNameDraft}
+                  onChange={(e) => { setApiNameDraft(e.target.value); setHasUnsavedApi(true); }}
+                  placeholder="e.g. Production Key"
+                />
+              </div>
+              <div>
+                <label htmlFor="api-key-input" className="block text-xs font-medium text-muted-foreground mb-1">
+                  New Credential Value
+                </label>
               <div className="relative">
                 <Input
                   id="api-key-input"
@@ -261,6 +300,7 @@ export const SettingsModule: React.FC = () => {
               <p className="text-xs text-muted-foreground mt-1">
                 This will replace the current credential. The value is transmitted securely and never stored client-side.
               </p>
+              </div>
             </div>
           )}
 
@@ -281,7 +321,7 @@ export const SettingsModule: React.FC = () => {
                   {apiState === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   Save credential
                 </Button>
-                <Button variant="ghost" onClick={() => { setApiState('idle'); setApiKeyDraft(''); setApiError(null); setHasUnsavedApi(false); }}>
+                <Button variant="ghost" onClick={() => { setApiState('idle'); setApiKeyDraft(settings.api.credential_value || ''); setApiNameDraft(settings.api.credential_name || ''); setApiError(null); setHasUnsavedApi(false); }}>
                   Cancel
                 </Button>
               </>
@@ -303,16 +343,29 @@ export const SettingsModule: React.FC = () => {
           </div>
 
           {/* Current credit status */}
-          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Current Credits</p>
-            <p className="text-3xl font-semibold tabular-nums text-foreground">
-              {settings.credits.current_credits?.toLocaleString() ?? '(-)'}
-            </p>
-            {settings.credits.credits_last_refreshed && (
-              <p className="text-xs text-muted-foreground tabular-nums">
-                Refreshed: {new Date(settings.credits.credits_last_refreshed).toLocaleString()}
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Current Credits</p>
+              <p className="text-3xl font-semibold tabular-nums text-foreground">
+                {settings.credits.current_credits?.toLocaleString() ?? '(-)'}
               </p>
-            )}
+              {settings.credits.credits_last_refreshed && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  Refreshed: {new Date(settings.credits.credits_last_refreshed).toLocaleString()}
+                </p>
+              )}
+            </div>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2" 
+              onClick={handleRefreshCredits}
+              disabled={refreshingCredits || !settings.api.credential_set}
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshingCredits ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
 
           {creditError && (
