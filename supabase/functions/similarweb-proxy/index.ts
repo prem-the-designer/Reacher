@@ -93,10 +93,6 @@ Deno.serve(async (req) => {
 
       const data = await response.json();
       
-      // Inject requested config for frontend use
-      data.country = countryEnabled ? 'US' : null;
-      data.granularity = granularityEnabled ? 'Monthly' : null;
-      
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: response.status,

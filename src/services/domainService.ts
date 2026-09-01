@@ -143,8 +143,8 @@ export async function searchMasterDatabase(
 
   // Extract reach value from the Similarweb API JSON structure
   const fetchedReach = apiResponse.visits?.[0]?.visits;
-  const fetchedCountry = apiResponse.country;
-  const fetchedGranularity = apiResponse.granularity;
+  const fetchedCountry = apiResponse.meta?.request?.country;
+  const fetchedGranularity = apiResponse.meta?.request?.granularity;
 
   if (fetchedReach === undefined) {
     await logApi('failed');
