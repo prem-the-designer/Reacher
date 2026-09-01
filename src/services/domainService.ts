@@ -250,18 +250,11 @@ export async function fetchNewDomainReach(
     return { record: null, error: 'credit_limit_reached' };
   }
 
-  const trafficConfig = settings.traffic_and_engagement;
-  
-  const countryEnabled = trafficConfig?.country ?? true;
-  const granularityEnabled = trafficConfig?.granularity ?? true;
-
   // Call the proxy to fetch from real Similarweb API
   const { data: apiResponse, error: proxyError } = await supabase.functions.invoke('similarweb-proxy', {
     body: {
       action: 'fetch_domain',
-      domain: rootDomain,
-      countryEnabled,
-      granularityEnabled
+      domain: rootDomain
     }
   });
 
@@ -274,8 +267,6 @@ export async function fetchNewDomainReach(
 
   // Extract reach value from the Similarweb API JSON structure
   const fetchedReach = apiResponse.visits?.[0]?.visits;
-  const fetchedCountry = apiResponse.meta?.request?.country;
-  const fetchedGranularity = apiResponse.meta?.request?.granularity;
 
   if (fetchedReach === undefined) {
     console.error('Similarweb fetch returned no visits array:', apiResponse);
@@ -312,7 +303,7 @@ export async function fetchNewDomainReach(
     // If it was a manual entry, update it in place so searchMasterDatabase finds the fresh value
     const res = await supabase
       .from('manual_reach_values')
-      .update({ reach_value: fetchedReach, country: fetchedCountry || manualData.country, updated_date: new Date().toISOString() })
+      .update({ reach_value: fetchedReach, updated_date: new Date().toISOString() })
       .eq('id', manualData.id)
       .select()
       .single();
@@ -320,7 +311,7 @@ export async function fetchNewDomainReach(
     error = res.error;
     dataSource = 'Master Database';
     provider = 'Manual DBO (Refreshed)';
-    recordCountry = fetchedCountry || manualData.country;
+    recordCountry = manualData.country;
     recordMediaType = manualData.media_type;
     recordPublication = manualData.outlet_name;
   } else {

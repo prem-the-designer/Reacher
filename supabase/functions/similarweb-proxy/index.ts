@@ -83,8 +83,8 @@ Deno.serve(async (req) => {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const dateStr = `${year}-${month}`;
       
-      const countryStr = countryEnabled ? 'us' : 'world';
-      const granStr = granularityEnabled ? 'monthly' : 'monthly';
+      const countryStr = 'world';
+      const granStr = 'monthly';
       
       const endpoint = `https://api.similarweb.com/v1/website/${domain}/total-traffic-and-engagement/visits?api_key=${apiKey}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&main_domain_only=false&format=json`;
 
