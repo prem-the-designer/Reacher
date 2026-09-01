@@ -53,7 +53,8 @@ export type ErrorType =
   | 'rate_limited'
   | 'server_failure'
   | 'network_failure'
-  | 'database_unavailable';
+  | 'database_unavailable'
+  | 'credit_limit_reached';
 
 export type ErrorPhase = 'search' | 'fetch';
 

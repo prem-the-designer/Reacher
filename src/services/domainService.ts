@@ -172,6 +172,57 @@ async function fakeSimilarwebApi(
   };
 }
 
+export async function checkSimilarwebCreditThreshold(
+  apiKey: string | undefined,
+  threshold: number
+): Promise<{ allowed: boolean; remainingCredits?: number; threshold: number }> {
+  console.log(`Credit check initiated. Threshold: ${threshold}`);
+
+  if (!apiKey) {
+    console.log(`Similarweb API request blocked: missing API key.`);
+    return { allowed: false, threshold };
+  }
+
+  try {
+    const response = await fetch('https://api.similarweb.com/v3/batch/credits', {
+      method: 'GET',
+      headers: {
+        'api-key': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.log(`Similarweb API request blocked: credit endpoint returned HTTP ${response.status}.`);
+      return { allowed: false, threshold };
+    }
+
+    const data = await response.json();
+    
+    // Attempting to extract the credits. Using remaining_hits based on Similarweb standard v3 credits endpoint.
+    const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
+
+    if (typeof remainingCredits !== 'number') {
+      console.log(`Similarweb API request blocked: response does not contain a valid remaining-credit value.`);
+      return { allowed: false, threshold };
+    }
+
+    console.log(`Similarweb credits: ${remainingCredits}`);
+    console.log(`Credit threshold: ${threshold}`);
+
+    if (remainingCredits <= threshold) {
+      console.log(`Similarweb API request blocked: credit threshold reached.`);
+      return { allowed: false, remainingCredits, threshold };
+    }
+
+    console.log(`Request allowed.`);
+    return { allowed: true, remainingCredits, threshold };
+  } catch (error) {
+    console.log(`Similarweb API request blocked: network/timeout error while checking credits.`);
+    return { allowed: false, threshold };
+  }
+}
+
 /**
  * Fetch Reach Value from API for NEW domains only (§2, §6, §11)
  * Triggered strictly when Analyst clicks "Get Reach".
@@ -233,6 +284,17 @@ export async function fetchNewDomainReach(
     await logApi('failed');
     await logReachRequest('failed');
     return { record: null, error: 'server_failure' };
+  }
+
+  const apiKey = import.meta.env.VITE_SIMILARWEB_API_KEY;
+  const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
+  
+  const creditCheck = await checkSimilarwebCreditThreshold(apiKey, threshold);
+  
+  if (!creditCheck.allowed) {
+    await logApi('failed');
+    await logReachRequest('failed');
+    return { record: null, error: 'credit_limit_reached' };
   }
 
   const settings = await getSettings();
