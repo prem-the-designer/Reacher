@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { checkSimilarwebCreditThreshold } from './domainService';
 
+vi.mock('./adminService', () => ({
+  saveSettings: vi.fn(),
+  getSettings: vi.fn(),
+}));
+
 describe('checkSimilarwebCreditThreshold', () => {
   const defaultApiKey = 'test-api-key';
 

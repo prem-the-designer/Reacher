@@ -1,6 +1,6 @@
 import { DomainRecord, ErrorType } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { getSettings } from '@/services/adminService';
+import { getSettings, saveSettings } from '@/services/adminService';
 
 /**
  * Normalizes input domain per §5 & §11
@@ -209,6 +209,16 @@ export async function checkSimilarwebCreditThreshold(
 
     console.log(`Similarweb credits: ${remainingCredits}`);
     console.log(`Credit threshold: ${threshold}`);
+
+    // Save the dynamically fetched remaining credits back to the database
+    try {
+      await saveSettings('credits', {
+        current_credits: remainingCredits,
+        credits_last_refreshed: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("Could not save current_credits to settings:", e);
+    }
 
     if (remainingCredits <= threshold) {
       console.log(`Similarweb API request blocked: credit threshold reached.`);
