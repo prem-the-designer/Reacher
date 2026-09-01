@@ -70,10 +70,15 @@ Deno.serve(async (req) => {
 
     if (action === 'fetch_domain') {
       // Construct Similarweb API endpoint
-      // Using generic total-traffic-and-engagement/visits endpoint
-      // Ensure past month is queried by default
+      // Ensure the latest available month is queried to avoid "Dates not in range" errors.
+      // Similarweb releases previous month's data around the 10th-12th of the current month.
       const date = new Date();
-      date.setMonth(date.getMonth() - 1);
+      if (date.getDate() < 12) {
+        date.setMonth(date.getMonth() - 2);
+      } else {
+        date.setMonth(date.getMonth() - 1);
+      }
+      
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const dateStr = `${year}-${month}`;
