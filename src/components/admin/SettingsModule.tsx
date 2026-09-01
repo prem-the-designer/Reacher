@@ -56,8 +56,8 @@ export const SettingsModule: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [hasUnsavedApi, hasUnsavedCredit, hasUnsavedTraffic]);
 
-  const loadSettings = async () => {
-    setLoading(true);
+  const loadSettings = async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const data = await getSettings();
@@ -75,7 +75,7 @@ export const SettingsModule: React.FC = () => {
     } catch {
       setLoadError(true);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -100,7 +100,7 @@ export const SettingsModule: React.FC = () => {
       // Auto-refresh credits on save
       const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
       await checkSimilarwebCreditThreshold(apiKeyDraft, threshold);
-      await loadSettings();
+      await loadSettings(true);
 
       setTimeout(() => setApiState('idle'), 3000);
     } catch {
@@ -116,7 +116,7 @@ export const SettingsModule: React.FC = () => {
       const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
       if (apiKey) {
         await checkSimilarwebCreditThreshold(apiKey, threshold);
-        await loadSettings();
+        await loadSettings(true);
       }
     } finally {
       setRefreshingCredits(false);
