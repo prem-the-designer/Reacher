@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
-import { Loader2, Eye, EyeOff, CheckCircle2, Lock, Activity, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle2, Activity, RefreshCw } from 'lucide-react';
 
 type SectionState = 'idle' | 'editing' | 'saving' | 'success' | 'error';
 
