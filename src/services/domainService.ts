@@ -285,10 +285,9 @@ export async function fetchNewDomainReach(
   }
 
   const settings = await getSettings();
-  const apiKey = settings.api?.credential_value;
   const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
   
-  const creditCheck = await checkSimilarwebCreditThreshold(apiKey || undefined, threshold);
+  const creditCheck = await checkSimilarwebCreditThreshold(threshold);
   
   if (!creditCheck.allowed) {
     await logApi('failed');

@@ -16,6 +16,7 @@ export const SettingsModule: React.FC = () => {
   const [settings, setSettings] = useState<SettingsConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [refreshingCredits, setRefreshingCredits] = useState(false);
 
   // Credit Limiter section
   const [creditState, setCreditState] = useState<SectionState>('idle');
