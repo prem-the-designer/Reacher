@@ -1,6 +1,8 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -14,11 +16,37 @@ Deno.serve(async (req) => {
 
   try {
     const { action } = await req.json()
-    const apiKey = Deno.env.get('SIMILARWEB_API_KEY')
+    
+    // Connect to Supabase to fetch the API key from the settings table
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({ error: 'Supabase configuration missing on server' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
+    }
 
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const { data: apiSettings, error: dbError } = await supabase
+      .from('settings')
+      .select('config')
+      .eq('key', 'api')
+      .single()
+
+    if (dbError) {
+      return new Response(
+        JSON.stringify({ error: `Database error: ${dbError.message}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
+    }
+
+    const apiKey = apiSettings?.config?.credential_value
+    
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'SIMILARWEB_API_KEY not configured on server' }),
+        JSON.stringify({ error: 'Similarweb API Key not configured in Database' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       )
     }
