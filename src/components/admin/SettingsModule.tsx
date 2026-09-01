@@ -168,9 +168,6 @@ export const SettingsModule: React.FC = () => {
         <p className="text-sm text-muted-foreground mt-1">API, credits and data refresh configuration</p>
       </div>
 
-        </Card>
-      </section>
-
       {/* ── Credit Limiter ─────────────────────────────────────────────── */}
       <section aria-labelledby="credit-limiter-heading">
         <Card elevation="xs" className="p-6 space-y-5 max-w-2xl">
