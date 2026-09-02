@@ -71,9 +71,9 @@ Deno.serve(async (req) => {
     if (action === 'fetch_domain') {
       // Construct Similarweb API endpoint
       // Ensure the latest available month is queried to avoid "Dates not in range" errors.
-      // Similarweb releases previous month's data around the 10th-12th of the current month.
+      // Similarweb releases previous month's data around the 8th of the current month.
       const date = new Date();
-      if (date.getDate() < 12) {
+      if (date.getDate() <= 8) {
         date.setMonth(date.getMonth() - 2);
       } else {
         date.setMonth(date.getMonth() - 1);
