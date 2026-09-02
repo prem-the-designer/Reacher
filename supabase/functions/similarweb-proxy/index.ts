@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'check_credits') {
+      const { warningThreshold, criticalThreshold } = body;
       const response = await fetch(`https://api.similarweb.com/capabilities?api_key=${apiKey}`, {
         method: 'GET',
         headers: {
@@ -62,6 +63,33 @@ Deno.serve(async (req) => {
       });
 
       const data = await response.json();
+      
+      // Trigger Notifications from server side to bypass RLS
+      const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
+      if (typeof remainingCredits === 'number') {
+        if (criticalThreshold != null && remainingCredits <= criticalThreshold) {
+          await supabase.from('notifications').insert({
+            id: crypto.randomUUID(),
+            category: 'low_api_credits',
+            title: 'Critical: API Credits Exhausted',
+            body: `Similarweb API has critically low credits (${remainingCredits} remaining).`,
+            read: false,
+            link_module: 'settings',
+            link_label: 'View Settings'
+          });
+        } else if (warningThreshold != null && remainingCredits <= warningThreshold) {
+          await supabase.from('notifications').insert({
+            id: crypto.randomUUID(),
+            category: 'low_api_credits',
+            title: 'Warning: Low API Credits',
+            body: `Similarweb API credits are running low (${remainingCredits} remaining).`,
+            read: false,
+            link_module: 'settings',
+            link_label: 'View Settings'
+          });
+        }
+      }
+
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: response.status,

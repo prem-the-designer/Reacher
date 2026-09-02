@@ -131,8 +131,8 @@ export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boole
   
   try {
     const settings = await getSettings();
-    if (settings.credits?.warning_threshold) warningThreshold = settings.credits.warning_threshold;
-    if (settings.credits?.critical_threshold) criticalThreshold = settings.credits.critical_threshold;
+    if (settings.credits?.warning_threshold != null) warningThreshold = Number(settings.credits.warning_threshold);
+    if (settings.credits?.critical_threshold != null) criticalThreshold = Number(settings.credits.critical_threshold);
   } catch (err) {
     console.warn("Could not fetch settings for credit threshold. Using defaults.", err);
   }
@@ -141,7 +141,7 @@ export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boole
 
   try {
     const { data, error } = await supabase.functions.invoke('similarweb-proxy', {
-      body: { action: 'check_credits' }
+      body: { action: 'check_credits', warningThreshold, criticalThreshold }
     });
 
     if (error || data?.error) {
@@ -165,27 +165,6 @@ export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boole
       });
     } catch (e) {
       console.warn("Could not save current_credits to settings:", e);
-    }
-
-    // Trigger Notification
-    if (remainingCredits <= criticalThreshold) {
-      await supabase.from('notifications').insert({
-        category: 'low_api_credits',
-        title: 'Critical: API Credits Exhausted',
-        body: `Similarweb API has critically low credits (${remainingCredits} remaining).`,
-        read: false,
-        link_module: 'settings',
-        link_label: 'View Settings'
-      });
-    } else if (remainingCredits <= warningThreshold) {
-      await supabase.from('notifications').insert({
-        category: 'low_api_credits',
-        title: 'Warning: Low API Credits',
-        body: `Similarweb API credits are running low (${remainingCredits} remaining).`,
-        read: false,
-        link_module: 'settings',
-        link_label: 'View Settings'
-      });
     }
 
     // Never block based on threshold per user request "Pick the Available credit alone and list the reach value"
