@@ -265,7 +265,7 @@ export async function fetchNewDomainReach(
   }
 
   // Extract reach value from the Similarweb API JSON structure
-  const fetchedReachRaw = apiResponse.visits?.[0]?.visits;
+  const fetchedReachRaw = apiResponse.unique_visitors?.[0]?.unique_visitors;
 
   if (fetchedReachRaw === undefined || fetchedReachRaw === null || typeof fetchedReachRaw !== 'number') {
     console.error('Similarweb fetch returned invalid visits data:', apiResponse);

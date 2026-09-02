@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
       const countryStr = 'world';
       const granStr = 'monthly';
       
-      const endpoint = `https://api.similarweb.com/v1/website/${domain}/total-traffic-and-engagement/visits?api_key=${apiKey}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&main_domain_only=false&format=json`;
+      const endpoint = `https://api.similarweb.com/v1/website/${domain}/unique-visitors/total?api_key=${apiKey}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&main_domain_only=false&format=json`;
 
       const response = await fetch(endpoint, {
         method: 'GET',
