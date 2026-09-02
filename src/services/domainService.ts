@@ -1,6 +1,6 @@
 import { DomainRecord, ErrorType } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { getSettings, saveSettings } from '@/services/adminService';
+import { saveSettings } from '@/services/adminService';
 
 /**
  * Normalizes input domain per §5 & §11
@@ -239,7 +239,6 @@ export async function fetchNewDomainReach(
     return { record: null, error: 'server_failure' };
   }
 
-  const settings = await getSettings();
   const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
   
   const creditCheck = await checkSimilarwebCreditThreshold(threshold);
@@ -366,7 +365,7 @@ export async function fetchNewDomainReach(
     country: recordCountry,
     media_type: recordMediaType,
     publication: recordPublication,
-    granularity: fetchedGranularity,
+    granularity: null,
     data_source: dataSource,
     last_updated: data.updated_date,
   };
