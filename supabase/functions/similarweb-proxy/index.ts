@@ -83,10 +83,10 @@ Deno.serve(async (req) => {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const dateStr = `${year}-${month}`;
       
-      const countryStr = 'world';
+      const countryStr = 'ww';
       const granStr = 'monthly';
       
-      const endpoint = `https://api.similarweb.com/v1/website/${domain}/unique-visitors/desktop_unique_visitors?api_key=${apiKey}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&main_domain_only=false&format=json`;
+      const endpoint = `https://api.similarweb.com/v5/website-analysis/websites/traffic-and-engagement?domain=${domain}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&metrics=unique_visitors&web_source=total&format=json`;
 
       const response = await fetch(endpoint, {
         method: 'GET',
