@@ -28,16 +28,21 @@ import { supabase } from '@/lib/supabase';
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
 export async function getDashboardCards(): Promise<DashboardCardData[]> {
-  // 1. Pending requests count
-  const { count: pendingRequests } = await supabase
-    .from('reach_requests')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending');
+  const startOfDay = new Date();
+  startOfDay.setHours(0,0,0,0);
+  const startOfDayIso = startOfDay.toISOString();
 
-  const { count: processingRequests } = await supabase
+  // 1. New requests today
+  const { count: newRequestsToday } = await supabase
     .from('reach_requests')
     .select('*', { count: 'exact', head: true })
-    .eq('status', 'processing');
+    .gte('created_at', startOfDayIso);
+
+  const { count: failedRequestsToday } = await supabase
+    .from('reach_requests')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'failed')
+    .gte('created_at', startOfDayIso);
 
   // 2. Active users count
   const { count: activeUsers } = await supabase
@@ -95,8 +100,8 @@ export async function getDashboardCards(): Promise<DashboardCardData[]> {
     {
       id: 'card-requests',
       label: 'New Reach Value Requests',
-      value: pendingRequests ?? 0,
-      context: `${processingRequests ?? 0} processing`,
+      value: newRequestsToday ?? 0,
+      context: failedRequestsToday ? `${failedRequestsToday} failed today` : 'All successful today',
       linkModule: 'user-activity',
       status: 'loaded',
     },
