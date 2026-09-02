@@ -117,6 +117,7 @@ export const SettingsModule: React.FC = () => {
     try {
       await checkSimilarwebCreditThreshold();
       await loadSettings(true);
+      window.dispatchEvent(new Event('reload-notifications'));
     } finally {
       setRefreshingCredits(false);
     }

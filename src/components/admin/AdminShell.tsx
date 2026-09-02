@@ -52,7 +52,10 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
   // Load notifications
   useEffect(() => {
-    getNotifications().then(setNotifications).catch(() => {});
+    const fetchNotifs = () => getNotifications().then(setNotifications).catch(() => {});
+    fetchNotifs();
+    window.addEventListener('reload-notifications', fetchNotifs);
+    return () => window.removeEventListener('reload-notifications', fetchNotifs);
   }, []);
 
   const handleNavigate = (module: AdminModule) => {

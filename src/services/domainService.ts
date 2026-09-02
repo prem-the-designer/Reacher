@@ -134,10 +134,8 @@ export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boole
     if (settings.credits?.warning_threshold != null) warningThreshold = Number(settings.credits.warning_threshold);
     if (settings.credits?.critical_threshold != null) criticalThreshold = Number(settings.credits.critical_threshold);
   } catch (err) {
-    console.warn("Could not fetch settings for credit threshold. Using defaults.", err);
+    // Ignore setting fetch errors, fallback to default
   }
-
-  console.log(`Credit check initiated. Warning: ${warningThreshold}, Critical: ${criticalThreshold}`);
 
   try {
     const { data, error } = await supabase.functions.invoke('similarweb-proxy', {
@@ -145,18 +143,14 @@ export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boole
     });
 
     if (error || data?.error) {
-      console.log(`Similarweb API request proxy returned error -`, error || data?.error);
       return { allowed: true }; // Don't block
     }
 
     const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
 
     if (typeof remainingCredits !== 'number') {
-      console.log(`Similarweb API request: response does not contain a valid remaining-credit value.`);
       return { allowed: true };
     }
-
-    console.log(`Available Similarweb credits: ${remainingCredits}`);
 
     try {
       await saveSettings('credits', {
@@ -164,13 +158,12 @@ export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boole
         credits_last_refreshed: new Date().toISOString()
       });
     } catch (e) {
-      console.warn("Could not save current_credits to settings:", e);
+      // Ignore save error
     }
 
     // Never block based on threshold per user request "Pick the Available credit alone and list the reach value"
     return { allowed: true, remainingCredits };
   } catch (error) {
-    console.log(`Similarweb API check credits error:`, error);
     return { allowed: true };
   }
 }
