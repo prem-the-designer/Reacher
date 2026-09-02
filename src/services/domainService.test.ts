@@ -33,7 +33,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(true);
     expect(result.remainingCredits).toBe(150);
@@ -45,7 +45,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(true);
     expect(result.remainingCredits).toBe(200);
@@ -57,7 +57,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(true);
     expect(result.remainingCredits).toBe(101);
@@ -69,7 +69,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(false);
     expect(result.remainingCredits).toBe(100);
@@ -81,7 +81,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(false);
     expect(result.remainingCredits).toBe(50);
@@ -93,7 +93,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: new Error('Network error')
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(false);
   });
@@ -104,7 +104,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(false);
   });
@@ -115,7 +115,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(false);
   });
@@ -126,7 +126,7 @@ describe('checkSimilarwebCreditThreshold', () => {
       error: null
     } as any);
 
-    const result = await checkSimilarwebCreditThreshold(100);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(false);
   });
@@ -138,7 +138,7 @@ describe('checkSimilarwebCreditThreshold', () => {
     } as any);
 
     // Using a different threshold
-    const result = await checkSimilarwebCreditThreshold(5);
+    const result = await checkSimilarwebCreditThreshold();
 
     expect(result.allowed).toBe(true);
     expect(result.remainingCredits).toBe(10);

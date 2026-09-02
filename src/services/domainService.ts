@@ -1,6 +1,6 @@
 import { DomainRecord, ErrorType } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { saveSettings } from '@/services/adminService';
+import { getSettings, saveSettings } from '@/services/adminService';
 
 /**
  * Normalizes input domain per §5 & §11
@@ -125,12 +125,19 @@ export async function searchMasterDatabase(
   return { record: null, error: null };
 }
 
+export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boolean; remainingCredits?: number }> {
+  let warningThreshold = 100;
+  let criticalThreshold = 20;
+  
+  try {
+    const settings = await getSettings();
+    if (settings.credits?.warning_threshold) warningThreshold = settings.credits.warning_threshold;
+    if (settings.credits?.critical_threshold) criticalThreshold = settings.credits.critical_threshold;
+  } catch (err) {
+    console.warn("Could not fetch settings for credit threshold. Using defaults.", err);
+  }
 
-
-export async function checkSimilarwebCreditThreshold(
-  threshold: number
-): Promise<{ allowed: boolean; remainingCredits?: number; threshold: number }> {
-  console.log(`Credit check initiated via backend proxy. Threshold: ${threshold}`);
+  console.log(`Credit check initiated. Warning: ${warningThreshold}, Critical: ${criticalThreshold}`);
 
   try {
     const { data, error } = await supabase.functions.invoke('similarweb-proxy', {
@@ -138,22 +145,19 @@ export async function checkSimilarwebCreditThreshold(
     });
 
     if (error || data?.error) {
-      console.log(`Similarweb API request blocked: backend returned error -`, error || data?.error);
-      return { allowed: false, threshold };
+      console.log(`Similarweb API request proxy returned error -`, error || data?.error);
+      return { allowed: true }; // Don't block
     }
 
-    // Attempting to extract the credits. Using remaining_hits based on Similarweb standard v3 credits endpoint.
     const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
 
     if (typeof remainingCredits !== 'number') {
-      console.log(`Similarweb API request blocked: response does not contain a valid remaining-credit value.`);
-      return { allowed: false, threshold };
+      console.log(`Similarweb API request: response does not contain a valid remaining-credit value.`);
+      return { allowed: true };
     }
 
-    console.log(`Similarweb credits: ${remainingCredits}`);
-    console.log(`Credit threshold: ${threshold}`);
+    console.log(`Available Similarweb credits: ${remainingCredits}`);
 
-    // Save the dynamically fetched remaining credits back to the database
     try {
       await saveSettings('credits', {
         current_credits: remainingCredits,
@@ -163,16 +167,32 @@ export async function checkSimilarwebCreditThreshold(
       console.warn("Could not save current_credits to settings:", e);
     }
 
-    if (remainingCredits <= threshold) {
-      console.log(`Similarweb API request blocked: credit threshold reached.`);
-      return { allowed: false, remainingCredits, threshold };
+    // Trigger Notification
+    if (remainingCredits <= criticalThreshold) {
+      await supabase.from('notifications').insert({
+        category: 'low_api_credits',
+        title: 'Critical: API Credits Exhausted',
+        body: `Similarweb API has critically low credits (${remainingCredits} remaining).`,
+        read: false,
+        link_module: 'settings',
+        link_label: 'View Settings'
+      });
+    } else if (remainingCredits <= warningThreshold) {
+      await supabase.from('notifications').insert({
+        category: 'low_api_credits',
+        title: 'Warning: Low API Credits',
+        body: `Similarweb API credits are running low (${remainingCredits} remaining).`,
+        read: false,
+        link_module: 'settings',
+        link_label: 'View Settings'
+      });
     }
 
-    console.log(`Request allowed.`);
-    return { allowed: true, remainingCredits, threshold };
+    // Never block based on threshold per user request "Pick the Available credit alone and list the reach value"
+    return { allowed: true, remainingCredits };
   } catch (error) {
-    console.log(`Similarweb API request blocked: network/timeout error while checking credits.`, error);
-    return { allowed: false, threshold };
+    console.log(`Similarweb API check credits error:`, error);
+    return { allowed: true };
   }
 }
 
@@ -239,10 +259,7 @@ export async function fetchNewDomainReach(
     return { record: null, error: 'server_failure' };
   }
 
-  const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
-  
-  const creditCheck = await checkSimilarwebCreditThreshold(threshold);
-  
+  const creditCheck = await checkSimilarwebCreditThreshold();
   if (!creditCheck.allowed) {
     await logApi('failed');
     await logReachRequest('failed');

@@ -115,8 +115,7 @@ export const SettingsModule: React.FC = () => {
   const handleRefreshCredits = async () => {
     setRefreshingCredits(true);
     try {
-      const threshold = Number(import.meta.env.VITE_SIMILARWEB_CREDIT_THRESHOLD) || 100;
-      await checkSimilarwebCreditThreshold(threshold);
+      await checkSimilarwebCreditThreshold();
       await loadSettings(true);
     } finally {
       setRefreshingCredits(false);
@@ -432,7 +431,9 @@ export const SettingsModule: React.FC = () => {
             </Button>
             <Button
               variant="ghost"
-              onClick={() => {
+              onClick={async () => {
+                // Validate against the API to get actual current credits using edge function
+                await checkSimilarwebCreditThreshold();
                 setWarningDraft(settings.credits.warning_threshold != null ? String(settings.credits.warning_threshold) : '');
                 setCriticalDraft(settings.credits.critical_threshold != null ? String(settings.credits.critical_threshold) : '');
                 setHasUnsavedCredit(false);
