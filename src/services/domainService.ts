@@ -128,35 +128,41 @@ export async function searchMasterDatabase(
 export async function checkSimilarwebCreditThreshold(): Promise<{ allowed: boolean; remainingCredits?: number }> {
   let warningThreshold = 100;
   let criticalThreshold = 20;
+  let lastNotifiedTier: 'critical' | 'warning' | 'safe' | null = null;
   
   try {
     const settings = await getSettings();
     if (settings.credits?.warning_threshold != null) warningThreshold = Number(settings.credits.warning_threshold);
     if (settings.credits?.critical_threshold != null) criticalThreshold = Number(settings.credits.critical_threshold);
+    if (settings.credits?.last_notified_tier != null) lastNotifiedTier = settings.credits.last_notified_tier;
   } catch (err) {
     // Ignore setting fetch errors, fallback to default
   }
 
   try {
     const { data, error } = await supabase.functions.invoke('similarweb-proxy', {
-      body: { action: 'check_credits', warningThreshold, criticalThreshold }
+      body: { action: 'check_credits', warningThreshold, criticalThreshold, lastNotifiedTier }
     });
 
     if (error || data?.error) {
       return { allowed: true }; // Don't block
     }
 
-    const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
+    const remainingCredits = data.data?.remaining_hits ?? data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
 
     if (typeof remainingCredits !== 'number') {
       return { allowed: true };
     }
 
     try {
-      await saveSettings('credits', {
+      const updates: any = {
         current_credits: remainingCredits,
         credits_last_refreshed: new Date().toISOString()
-      });
+      };
+      if (data.newTier) {
+        updates.last_notified_tier = data.newTier;
+      }
+      await saveSettings('credits', updates);
     } catch (e) {
       // Ignore save error
     }

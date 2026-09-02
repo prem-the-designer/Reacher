@@ -243,6 +243,7 @@ export interface CreditLimiterSettings {
   critical_threshold: number | null;
   current_credits: number | null;
   credits_last_refreshed: string | null;
+  last_notified_tier?: 'critical' | 'warning' | 'safe' | null;
 }
 
 export interface DataRefreshSettings {

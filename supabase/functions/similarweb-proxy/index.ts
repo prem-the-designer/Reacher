@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'check_credits') {
-      const { warningThreshold, criticalThreshold } = body;
+      const { warningThreshold, criticalThreshold, lastNotifiedTier } = body;
       const response = await fetch(`https://api.similarweb.com/capabilities?api_key=${apiKey}`, {
         method: 'GET',
         headers: {
@@ -66,29 +66,46 @@ Deno.serve(async (req) => {
       
       // Trigger Notifications from server side to bypass RLS
       const remainingCredits = data.remaining_hits ?? data.remaining_credits ?? data.credits_remaining;
+      let newTier = 'safe';
+      
       if (typeof remainingCredits === 'number') {
-        if (criticalThreshold != null && remainingCredits <= criticalThreshold) {
-          await supabase.from('notifications').insert({
-            id: crypto.randomUUID(),
-            category: 'low_api_credits',
-            title: 'Critical: API Credits Exhausted',
-            body: `Similarweb API has critically low credits (${remainingCredits} remaining).`,
-            read: false,
-            link_module: 'settings',
-            link_label: 'View Settings'
-          });
-        } else if (warningThreshold != null && remainingCredits <= warningThreshold) {
-          await supabase.from('notifications').insert({
-            id: crypto.randomUUID(),
-            category: 'low_api_credits',
-            title: 'Warning: Low API Credits',
-            body: `Similarweb API credits are running low (${remainingCredits} remaining).`,
-            read: false,
-            link_module: 'settings',
-            link_label: 'View Settings'
-          });
+        const isCritical = criticalThreshold != null && remainingCredits <= criticalThreshold;
+        const isWarning = !isCritical && warningThreshold != null && remainingCredits <= warningThreshold;
+        
+        if (isCritical) {
+          newTier = 'critical';
+        } else if (isWarning) {
+          newTier = 'warning';
+        }
+
+        // Only insert if the tier actually changed to something that requires a notification
+        if (newTier !== 'safe' && newTier !== lastNotifiedTier) {
+          if (newTier === 'critical') {
+            await supabase.from('notifications').insert({
+              id: crypto.randomUUID(),
+              category: 'low_api_credits',
+              title: 'Critical: API Credits Exhausted',
+              body: `Similarweb API has critically low credits (${remainingCredits} remaining).`,
+              read: false,
+              link_module: 'settings',
+              link_label: 'View Settings'
+            });
+          } else if (newTier === 'warning') {
+            await supabase.from('notifications').insert({
+              id: crypto.randomUUID(),
+              category: 'low_api_credits',
+              title: 'Warning: Low API Credits',
+              body: `Similarweb API credits are running low (${remainingCredits} remaining).`,
+              read: false,
+              link_module: 'settings',
+              link_label: 'View Settings'
+            });
+          }
         }
       }
+      
+      // return newTier to frontend so it can save it
+      data.newTier = newTier;
 
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
