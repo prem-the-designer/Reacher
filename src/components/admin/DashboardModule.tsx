@@ -30,12 +30,23 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   const [cardsLoading, setCardsLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState(false);
+  const [isCriticalCredit, setIsCriticalCredit] = useState(false);
 
   const loadCards = async (silent = false) => {
     if (!silent) setCardsLoading(true);
     try {
       const data = await getDashboardCards();
       setCards(data);
+      
+      // Also check critical credits for the caution sign
+      const { getSettings } = await import('@/services/adminService');
+      const settings = await getSettings();
+      const creds = settings.credits;
+      if (creds?.current_credits != null && creds?.critical_threshold != null) {
+        setIsCriticalCredit(creds.current_credits <= creds.critical_threshold);
+      } else {
+        setIsCriticalCredit(false);
+      }
     } catch {
       // Each card tracks its own state; this is a fallback
       setCards((prev) =>
@@ -74,9 +85,17 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   return (
     <div className="space-y-8">
       {/* Page heading */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">What requires your attention today</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">What requires your attention today</p>
+        </div>
+        {isCriticalCredit && (
+          <div className="flex items-center gap-2 bg-destructive/10 text-destructive text-sm font-medium px-4 py-2 rounded-lg border border-destructive/20 shadow-sm transition-all">
+            <AlertCircle className="w-5 h-5" aria-hidden="true" />
+            <span>Critical Credit Limit</span>
+          </div>
+        )}
       </div>
 
       {/* Status cards — 4-up desktop, 2-up tablet, 1-up mobile */}

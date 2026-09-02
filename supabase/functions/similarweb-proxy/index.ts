@@ -80,22 +80,25 @@ Deno.serve(async (req) => {
 
         // Only insert if the tier actually changed to something that requires a notification
         if (newTier !== 'safe' && newTier !== lastNotifiedTier) {
-          if (newTier === 'critical') {
+          const expectedTitle = newTier === 'critical' ? 'Critical: API Credits Exhausted' : 'Warning: Low API Credits';
+          
+          // Check for existing unread notification to prevent concurrent request race conditions
+          const { data: existing } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('category', 'low_api_credits')
+            .eq('title', expectedTitle)
+            .eq('read', false)
+            .limit(1);
+
+          if (!existing || existing.length === 0) {
             await supabase.from('notifications').insert({
               id: crypto.randomUUID(),
               category: 'low_api_credits',
-              title: 'Critical: API Credits Exhausted',
-              body: `Similarweb API has critically low credits (${remainingCredits} remaining).`,
-              read: false,
-              link_module: 'settings',
-              link_label: 'View Settings'
-            });
-          } else if (newTier === 'warning') {
-            await supabase.from('notifications').insert({
-              id: crypto.randomUUID(),
-              category: 'low_api_credits',
-              title: 'Warning: Low API Credits',
-              body: `Similarweb API credits are running low (${remainingCredits} remaining).`,
+              title: expectedTitle,
+              body: newTier === 'critical' 
+                ? `Similarweb API has critically low credits (${remainingCredits} remaining).`
+                : `Similarweb API credits are running low (${remainingCredits} remaining).`,
               read: false,
               link_module: 'settings',
               link_label: 'View Settings'
