@@ -58,6 +58,24 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     return () => window.removeEventListener('reload-notifications', fetchNotifs);
   }, []);
 
+  // Refresh credits every 1 minute
+  useEffect(() => {
+    const fetchCredits = async () => {
+      try {
+        const { checkSimilarwebCreditThreshold } = await import('@/services/domainService');
+        await checkSimilarwebCreditThreshold();
+        window.dispatchEvent(new Event('reload-notifications'));
+      } catch (e) {
+        console.error('Failed to auto-refresh credits:', e);
+      }
+    };
+    
+    // Call once on mount, then every 60s
+    fetchCredits();
+    const interval = setInterval(fetchCredits, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleNavigate = (module: AdminModule) => {
     setActiveModule(module);
     setDrawerOpen(false);
