@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
       const countryStr = 'world';
       const granStr = 'monthly';
       
-      const endpoint = `https://api.similarweb.com/v1/website/${domain}/unique-visitors/total?api_key=${apiKey}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&main_domain_only=false&format=json`;
+      const endpoint = `https://api.similarweb.com/v1/website/${domain}/unique-visitors/desktop_unique_visitors?api_key=${apiKey}&start_date=${dateStr}&end_date=${dateStr}&country=${countryStr}&granularity=${granStr}&main_domain_only=false&format=json`;
 
       const response = await fetch(endpoint, {
         method: 'GET',
@@ -112,9 +112,10 @@ Deno.serve(async (req) => {
     )
   } catch (error) {
     const err = error as Error;
+    // We return 200 OK with the error embedded so the Supabase client doesn't throw a FunctionsHttpError
     return new Response(
-      JSON.stringify({ error: err.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      JSON.stringify({ error: err.message, meta: { status: 'Error', error_message: err.message } }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   }
 })
