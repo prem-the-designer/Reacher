@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import type { SettingsConfig, TrafficAndEngagementSettings } from '@/types';
+import type { SettingsConfig } from '@/types';
 import { getSettings, saveSettings } from '@/services/adminService';
 import { checkSimilarwebCreditThreshold } from '@/services/domainService';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
-import { Loader2, CheckCircle2, Activity, RefreshCw, Eye, EyeOff, Lock } from 'lucide-react';
+import { Loader2, CheckCircle2, RefreshCw, Eye, EyeOff, Lock } from 'lucide-react';
 
 type SectionState = 'idle' | 'editing' | 'saving' | 'success' | 'error';
 
@@ -33,12 +33,7 @@ export const SettingsModule: React.FC = () => {
   // Unsaved-changes guard
   const [hasUnsavedApi, setHasUnsavedApi] = useState(false);
   const [hasUnsavedCredit, setHasUnsavedCredit] = useState(false);
-  const [hasUnsavedTraffic, setHasUnsavedTraffic] = useState(false);
-
-  // Traffic and Engagement Config Section
-  const [trafficState, setTrafficState] = useState<SectionState>('idle');
-  const [trafficError, setTrafficError] = useState<string | null>(null);
-  const [trafficDraft, setTrafficDraft] = useState<TrafficAndEngagementSettings | null>(null);
+  // Traffic and Engagement Config Section removed
   useEffect(() => {
     loadSettings();
   }, []);
@@ -46,14 +41,14 @@ export const SettingsModule: React.FC = () => {
   // Warn on navigation if there are unsaved changes
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedApi || hasUnsavedCredit || hasUnsavedTraffic) {
+      if (hasUnsavedApi || hasUnsavedCredit) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [hasUnsavedApi, hasUnsavedCredit, hasUnsavedTraffic]);
+  }, [hasUnsavedApi, hasUnsavedCredit]);
 
   const loadSettings = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -67,8 +62,6 @@ export const SettingsModule: React.FC = () => {
       setApiKeyDraft(''); // Never pre-fill the API key
       setWarningDraft(data.credits.warning_threshold != null ? String(data.credits.warning_threshold) : '');
       setCriticalDraft(data.credits.critical_threshold != null ? String(data.credits.critical_threshold) : '');
-      const tData = (data.traffic_and_engagement || {}) as Partial<TrafficAndEngagementSettings>;
-      setTrafficDraft({ country: tData.country ?? true, granularity: tData.granularity ?? true });
     } catch {
       setLoadError(true);
     } finally {
@@ -151,33 +144,7 @@ export const SettingsModule: React.FC = () => {
     }
   };
 
-  const handleSaveTrafficConfig = async () => {
-    if (!trafficDraft) return;
-    setTrafficState('saving');
-    setTrafficError(null);
-    try {
-      const updated = await saveSettings('traffic_and_engagement', trafficDraft);
-      setSettings(updated);
-      setTrafficState('success');
-      setHasUnsavedTraffic(false);
-      setTimeout(() => setTrafficState('idle'), 3000);
-    } catch {
-      setTrafficState('error');
-      setTrafficError('Could not save Traffic and Engagement configuration. Please try again.');
-    }
-  };
 
-  const handleToggleTrafficSetting = (setting: keyof TrafficAndEngagementSettings) => {
-    setTrafficDraft(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        [setting]: !prev[setting]
-      };
-    });
-    setHasUnsavedTraffic(true);
-    setTrafficState('editing');
-  };
   if (loading) {
     return (
       <div className="space-y-6">
@@ -447,77 +414,6 @@ export const SettingsModule: React.FC = () => {
         </Card>
       </section>
 
-      {/* ── Traffic and Engagement Configuration ─────────────────────────────────────────── */}
-      <section aria-labelledby="traffic-config-heading">
-        <Card elevation="xs" className="p-6 space-y-5 max-w-2xl">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <h2 id="traffic-config-heading" className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Activity className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                Traffic and Engagement
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Configure enabled properties for the API fetch. Properties disabled here will not be requested.
-              </p>
-            </div>
-          </div>
-
-          {trafficState === 'success' && (
-            <div className="flex items-center gap-2 text-sm text-success">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              Settings updated successfully.
-            </div>
-          )}
-
-          {trafficError && (
-            <Alert variant="destructive" title="Error">
-              <p className="text-sm">{trafficError}</p>
-            </Alert>
-          )}
-
-          {trafficDraft && (
-            <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-3">
-              {Object.entries(trafficDraft).map(([setting, enabled]) => (
-                <label key={setting} className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary focus:ring-offset-background"
-                    checked={enabled as boolean}
-                    onChange={() => handleToggleTrafficSetting(setting as keyof TrafficAndEngagementSettings)}
-                  />
-                  <span className="text-sm text-foreground capitalize">{setting.replace('_', ' ')}</span>
-                </label>
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              variant="default"
-              onClick={handleSaveTrafficConfig}
-              disabled={trafficState === 'saving' || trafficState === 'idle'}
-              className="gap-2"
-            >
-              {trafficState === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              Save configuration
-            </Button>
-            {hasUnsavedTraffic && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  const tData = (settings.traffic_and_engagement || {}) as Partial<TrafficAndEngagementSettings>;
-                  setTrafficDraft({ country: tData.country ?? true, granularity: tData.granularity ?? true });
-                  setHasUnsavedTraffic(false);
-                  setTrafficState('idle');
-                  setTrafficError(null);
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-          </div>
-        </Card>
-      </section>
 
       {/* ── Data Refresh ────────────────────────────────────────────────
       <section aria-labelledby="data-refresh-heading">
