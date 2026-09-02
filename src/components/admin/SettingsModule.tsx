@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import type { SettingsConfig } from '@/types';
 import { getSettings, saveSettings } from '@/services/adminService';
 import { checkSimilarwebCreditThreshold } from '@/services/domainService';
@@ -17,6 +17,9 @@ export const SettingsModule: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [refreshingCredits, setRefreshingCredits] = useState(false);
+  const [refreshCountdown, setRefreshCountdown] = useState(60);
+  const refreshCreditsRef = useRef<() => void>();
+
   // API Config section
   const [apiState, setApiState] = useState<SectionState>('idle');
   const [apiError, setApiError] = useState<string | null>(null);
@@ -36,6 +39,20 @@ export const SettingsModule: React.FC = () => {
   // Traffic and Engagement Config Section removed
   useEffect(() => {
     loadSettings();
+  }, []);
+
+  // Timer for auto-refresh
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRefreshCountdown((prev) => {
+        if (prev <= 1) {
+          if (refreshCreditsRef.current) refreshCreditsRef.current();
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   // Warn on navigation if there are unsaved changes
@@ -105,7 +122,8 @@ export const SettingsModule: React.FC = () => {
     }
   };
 
-  const handleRefreshCredits = async () => {
+  const handleRefreshCredits = useCallback(async () => {
+    if (refreshingCredits) return;
     setRefreshingCredits(true);
     try {
       await checkSimilarwebCreditThreshold();
@@ -113,8 +131,13 @@ export const SettingsModule: React.FC = () => {
       window.dispatchEvent(new Event('reload-notifications'));
     } finally {
       setRefreshingCredits(false);
+      setRefreshCountdown(60); // Reset timer on manual refresh
     }
-  };
+  }, [refreshingCredits]);
+
+  useEffect(() => {
+    refreshCreditsRef.current = handleRefreshCredits;
+  }, [handleRefreshCredits]);
 
   const handleSaveCreditLimiter = async () => {
     const warning = warningDraft ? Number(warningDraft) : null;
@@ -331,16 +354,19 @@ export const SettingsModule: React.FC = () => {
               )}
             </div>
             
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2" 
-              onClick={handleRefreshCredits}
-              disabled={refreshingCredits}
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshingCredits ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2" 
+                onClick={handleRefreshCredits}
+                disabled={refreshingCredits}
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshingCredits ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <p className="text-[10px] text-muted-foreground mr-1">Auto-refreshing in {refreshCountdown}s</p>
+            </div>
           </div>
 
           {creditError && (
