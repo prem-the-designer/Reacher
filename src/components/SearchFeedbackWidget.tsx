@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { FeedbackCampaign, FeedbackCampaignVersion } from '@/types/feedback';
 import { submitResponse } from '@/services/feedbackService';
 import { Button } from '@/components/ui/Button';
-import { CheckCircle2, MessageSquare, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, MessageSquare, AlertCircle, RefreshCw, Check } from 'lucide-react';
 
 interface SearchFeedbackWidgetProps {
   campaign: FeedbackCampaign;
@@ -171,42 +171,50 @@ export const SearchFeedbackWidget: React.FC<SearchFeedbackWidgetProps> = ({
             {(config?.negative_reasons || []).map((reason) => {
               const isChecked = selectedReasons.includes(reason.label);
               return (
-                <label
+                <button
+                  type="button"
                   key={reason.id}
                   onClick={() => toggleReason(reason.label)}
-                  className={`flex items-start gap-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                  className={`flex items-center gap-2.5 p-3 rounded-lg border text-xs text-left cursor-pointer transition-all duration-150 w-full select-none ${
                     isChecked
-                      ? 'border-primary/50 bg-primary/5 text-foreground font-medium'
-                      : 'border-border/80 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      ? 'border-primary/70 bg-primary/10 text-foreground font-medium ring-1 ring-primary/30'
+                      : 'border-border/80 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-border'
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => {}}
-                    className="mt-0.5 rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
-                  />
-                  <span>{reason.label}</span>
-                </label>
+                  <div
+                    className={`h-4 w-4 rounded flex items-center justify-center shrink-0 border transition-colors ${
+                      isChecked
+                        ? 'bg-primary border-primary text-primary-foreground'
+                        : 'border-muted-foreground/40 bg-background'
+                    }`}
+                  >
+                    {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                  </div>
+                  <span className="flex-1 leading-snug">{reason.label}</span>
+                </button>
               );
             })}
           </div>
 
-          {config?.comment_enabled && (
-            <div className="space-y-1">
-              <textarea
-                rows={2}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder={config.comment_placeholder || 'Tell us more (optional)'}
-                maxLength={config.comment_max_length || 500}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#A1A1A1]/80"
-              />
-              <div className="flex justify-end text-[10px] text-muted-foreground">
-                {comment.length} / {config.comment_max_length || 500}
+          {config?.comment_enabled &&
+            selectedReasons.some((r) => r.toLowerCase().trim() === 'something else') && (
+              <div className="space-y-1.5 animate-in fade-in-50 duration-200">
+                <label className="text-[11px] font-medium text-foreground">
+                  Please tell us more:
+                </label>
+                <textarea
+                  rows={3}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder={config.comment_placeholder || 'Tell us what could be improved (optional)...'}
+                  maxLength={config.comment_max_length || 500}
+                  className="w-full h-24 resize-none rounded-md border border-input bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#A1A1A1]/80 leading-relaxed"
+                />
+                <div className="flex justify-end text-[10px] text-muted-foreground">
+                  {comment.length} / {config.comment_max_length || 500}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
             <Button variant="ghost" size="sm" onClick={handleCancel} className="h-8 text-xs">
