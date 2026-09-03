@@ -698,6 +698,33 @@ export interface ResponseFilters {
 }
 
 export async function getResponses(filters?: ResponseFilters): Promise<FeedbackResponse[]> {
+  const isNative = await checkNativeTables();
+  if (isNative) {
+    try {
+      let query = supabase.from('feedback_responses').select('*').order('created_at', { ascending: false });
+      if (filters?.campaignId) query = query.eq('campaign_id', filters.campaignId);
+      if (filters?.versionLabel) query = query.eq('version_label', filters.versionLabel);
+      if (filters?.rating) query = query.eq('rating', filters.rating);
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        let list = data as FeedbackResponse[];
+        if (filters?.reason) list = list.filter((r) => r.reasons?.includes(filters.reason!));
+        if (filters?.domain) list = list.filter((r) => r.domain.toLowerCase().includes(filters.domain!.toLowerCase()));
+        if (filters?.searchQuery) {
+          const q = filters.searchQuery.toLowerCase();
+          list = list.filter(
+            (r) =>
+              r.domain.toLowerCase().includes(q) ||
+              r.search_id.toLowerCase().includes(q) ||
+              r.comment?.toLowerCase().includes(q) ||
+              r.user_name?.toLowerCase().includes(q)
+          );
+        }
+        return list;
+      }
+    } catch {}
+  }
+
   const store = await loadFallbackStore();
   let list = store.responses;
 
@@ -731,6 +758,11 @@ export async function getResponses(filters?: ResponseFilters): Promise<FeedbackR
 }
 
 export async function getResponseById(id: string): Promise<FeedbackResponse | null> {
+  const isNative = await checkNativeTables();
+  if (isNative) {
+    const { data } = await supabase.from('feedback_responses').select('*').eq('id', id).maybeSingle();
+    if (data) return data as FeedbackResponse;
+  }
   const store = await loadFallbackStore();
   return store.responses.find((r) => r.id === id) || null;
 }
@@ -785,6 +817,14 @@ export async function submitResponse(input: {
 
   // If in test mode, do NOT pollute production responses or analytics
   if (!input.is_test) {
+    const isNative = await checkNativeTables();
+    if (isNative) {
+      try {
+        await supabase.from('feedback_responses').insert([responseItem]);
+      } catch (e) {
+        console.warn('Native insert to feedback_responses failed, using fallback store:', e);
+      }
+    }
     const updatedResponses = [responseItem, ...store.responses];
     await saveFallbackStore({ responses: updatedResponses });
   }
