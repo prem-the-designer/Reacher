@@ -16,6 +16,25 @@ export interface NegativeReasonItem {
   order: number;
 }
 
+export type ConditionField = 'search_type' | 'search_status' | 'reach_value' | 'search_source';
+export type ConditionOperator = 'is';
+
+export interface CampaignCondition {
+  id: string;
+  field: ConditionField;
+  operator: ConditionOperator;
+  value: string;
+}
+
+export interface CampaignExclusion {
+  id: string;
+  field: ConditionField | 'action' | 'history';
+  operator: ConditionOperator;
+  value: string;
+  label: string;
+  enabled: boolean;
+}
+
 export interface FeedbackCampaignVersionConfig {
   positive_label?: string; // default "Yes"
   negative_label?: string; // default "No"
@@ -33,6 +52,8 @@ export interface FeedbackCampaignVersion {
   question: string;
   response_type: 'yes_no';
   configuration: FeedbackCampaignVersionConfig;
+  conditions?: CampaignCondition[];
+  exclusions?: CampaignExclusion[];
   status: 'draft' | 'published' | 'deprecated';
   created_by: string;
   created_at: string;
@@ -46,10 +67,14 @@ export interface FeedbackCampaign {
   feedback_type: FeedbackType;
   status: FeedbackCampaignStatus;
   priority: FeedbackPriority;
+  priority_score?: number; // High = 100, Normal = 50, Low = 10
   audience: FeedbackAudience;
   trigger_event: TriggerEvent;
+  conditions?: CampaignCondition[];
+  exclusions?: CampaignExclusion[];
   frequency_rule: 'every_eligible_search';
   cooldown_seconds: number; // e.g. 0 for none, 86400 for 24h
+  max_prompts_per_day?: number; // default 3
   start_at: string | null; // ISO string or null for immediate
   end_at: string | null;   // ISO string or null for no end date
   current_version_id: string | null;

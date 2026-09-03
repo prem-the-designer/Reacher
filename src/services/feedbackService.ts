@@ -14,6 +14,8 @@ import type {
   FeedbackEligibilityResult,
   NegativeReasonItem,
   FeedbackCampaignStatus,
+  CampaignCondition,
+  CampaignExclusion,
 } from '@/types/feedback';
 
 export const DEFAULT_NEGATIVE_REASONS: NegativeReasonItem[] = [
@@ -23,6 +25,18 @@ export const DEFAULT_NEGATIVE_REASONS: NegativeReasonItem[] = [
   { id: 'reason-4', label: "I expected more information", order: 4 },
   { id: 'reason-5', label: "The search took too long", order: 5 },
   { id: 'reason-6', label: "Something else", order: 6 },
+];
+
+export const DEFAULT_CONDITIONS: CampaignCondition[] = [
+  { id: 'cond-1', field: 'search_type', operator: 'is', value: 'single_domain' },
+  { id: 'cond-2', field: 'search_status', operator: 'is', value: 'successful' },
+  { id: 'cond-3', field: 'reach_value', operator: 'is', value: 'available' },
+];
+
+export const DEFAULT_EXCLUSIONS: CampaignExclusion[] = [
+  { id: 'excl-1', field: 'search_type', operator: 'is', value: 'bulk_search', label: 'Bulk searches', enabled: true },
+  { id: 'excl-2', field: 'action', operator: 'is', value: 'refresh', label: 'Refresh actions', enabled: true },
+  { id: 'excl-3', field: 'history', operator: 'is', value: 'already_answered', label: 'Searches that already received feedback', enabled: true },
 ];
 
 export const DEFAULT_SETTINGS: FeedbackSettings = {
@@ -45,10 +59,14 @@ export const DEFAULT_CAMPAIGN: FeedbackCampaign = {
   feedback_type: 'successful_search',
   status: 'active',
   priority: 'normal',
+  priority_score: 50,
   audience: 'analysts',
   trigger_event: 'search_completed',
+  conditions: DEFAULT_CONDITIONS,
+  exclusions: DEFAULT_EXCLUSIONS,
   frequency_rule: 'every_eligible_search',
-  cooldown_seconds: 0,
+  cooldown_seconds: 86400,
+  max_prompts_per_day: 3,
   start_at: null,
   end_at: null,
   current_version_id: DEFAULT_VERSION_ID,
@@ -349,6 +367,10 @@ export async function saveCampaignDraft(
   const versionNumber = target ? target.current_version_number : 1;
   const versionId = `ver-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
+  const priorityScores: Record<string, number> = { high: 100, normal: 50, low: 10 };
+  const priority = campaignData.priority || 'normal';
+  const priorityScore = campaignData.priority_score || priorityScores[priority] || 50;
+
   const newVersion: FeedbackCampaignVersion = {
     id: target?.current_version_id || versionId,
     campaign_id: campaignId,
@@ -364,6 +386,8 @@ export async function saveCampaignDraft(
       comment_placeholder: versionData?.configuration?.comment_placeholder || 'Tell us more (optional)',
       comment_max_length: versionData?.configuration?.comment_max_length || 500,
     },
+    conditions: campaignData.conditions || versionData?.conditions || target?.conditions || DEFAULT_CONDITIONS,
+    exclusions: campaignData.exclusions || versionData?.exclusions || target?.exclusions || DEFAULT_EXCLUSIONS,
     status: 'draft',
     created_by: actorName,
     created_at: now,
@@ -376,11 +400,15 @@ export async function saveCampaignDraft(
     description: campaignData.description || '',
     feedback_type: 'successful_search',
     status: target ? (target.status === 'archived' ? 'draft' : target.status) : 'draft',
-    priority: campaignData.priority || 'normal',
+    priority,
+    priority_score: priorityScore,
     audience: 'analysts',
     trigger_event: 'search_completed',
+    conditions: campaignData.conditions || target?.conditions || DEFAULT_CONDITIONS,
+    exclusions: campaignData.exclusions || target?.exclusions || DEFAULT_EXCLUSIONS,
     frequency_rule: 'every_eligible_search',
-    cooldown_seconds: campaignData.cooldown_seconds || 0,
+    cooldown_seconds: campaignData.cooldown_seconds ?? 86400,
+    max_prompts_per_day: campaignData.max_prompts_per_day ?? 3,
     start_at: campaignData.start_at || null,
     end_at: campaignData.end_at || null,
     current_version_id: newVersion.id,
@@ -924,5 +952,122 @@ export async function checkFeedbackEligibility(
     eligible: true,
     campaign: eligibleCampaign,
     version: activeVersion,
+  };
+}
+
+// ── Test Eligibility Scenario Simulator ────────────────────────────────────
+
+export interface ScenarioParams {
+  searchType: 'single_domain' | 'bulk_search';
+  searchStatus: 'successful' | 'failed';
+  reachValue: 'available' | 'not_available';
+  searchSource: 'existing_data' | 'api';
+  userRole: 'analyst' | 'admin' | 'guest';
+}
+
+export interface EvaluationItem {
+  id: string;
+  label: string;
+  passed: boolean;
+  type: 'trigger' | 'condition' | 'exclusion' | 'audience' | 'schedule' | 'cooldown';
+  detail?: string;
+}
+
+export interface ScenarioResult {
+  eligible: boolean;
+  failedReason?: string;
+  evaluations: EvaluationItem[];
+}
+
+export function testCampaignEligibility(
+  campaign: Partial<FeedbackCampaign>,
+  scenario: ScenarioParams
+): ScenarioResult {
+  const evaluations: EvaluationItem[] = [];
+
+  // 1. Trigger
+  evaluations.push({
+    id: 'trig-1',
+    label: 'Search Completed',
+    passed: true,
+    type: 'trigger',
+  });
+
+  // 2. Conditions
+  const conditions = campaign.conditions || DEFAULT_CONDITIONS;
+  for (const cond of conditions) {
+    let passed = false;
+    let label = '';
+    if (cond.field === 'search_type') {
+      passed = cond.value === scenario.searchType;
+      label = cond.value === 'single_domain' ? 'Single Domain' : 'Bulk Search';
+    } else if (cond.field === 'search_status') {
+      passed = cond.value === scenario.searchStatus;
+      label = cond.value === 'successful' ? 'Successful' : 'Failed';
+    } else if (cond.field === 'reach_value') {
+      passed = cond.value === scenario.reachValue;
+      label = cond.value === 'available' ? 'Reach Value Available' : 'Reach Value Unavailable';
+    } else if (cond.field === 'search_source') {
+      passed = cond.value === scenario.searchSource;
+      label = `Source is ${cond.value === 'existing_data' ? 'Existing Data' : 'API'}`;
+    }
+    evaluations.push({
+      id: cond.id,
+      label,
+      passed,
+      type: 'condition',
+    });
+  }
+
+  // 3. Exclusions
+  const exclusions = campaign.exclusions || DEFAULT_EXCLUSIONS;
+  for (const excl of exclusions) {
+    if (!excl.enabled) continue;
+    let passed = true;
+    if (excl.value === 'bulk_search' && scenario.searchType === 'bulk_search') {
+      passed = false;
+    }
+    evaluations.push({
+      id: excl.id,
+      label: `Not a ${excl.label}`,
+      passed,
+      type: 'exclusion',
+    });
+  }
+
+  // 4. Audience
+  const audiencePassed = scenario.userRole === 'analyst';
+  evaluations.push({
+    id: 'aud-1',
+    label: 'Analyst Audience',
+    passed: audiencePassed,
+    type: 'audience',
+  });
+
+  // 5. Schedule
+  const now = Date.now();
+  const schedulePassed =
+    (!campaign.start_at || new Date(campaign.start_at).getTime() <= now) &&
+    (!campaign.end_at || new Date(campaign.end_at).getTime() >= now);
+  evaluations.push({
+    id: 'sched-1',
+    label: 'Schedule Active',
+    passed: schedulePassed,
+    type: 'schedule',
+  });
+
+  // 6. Cooldown & Frequency
+  evaluations.push({
+    id: 'cool-1',
+    label: 'Cooldown Passed',
+    passed: true,
+    type: 'cooldown',
+  });
+
+  const firstFailed = evaluations.find((e) => !e.passed);
+  return {
+    eligible: !firstFailed,
+    failedReason: firstFailed ? firstFailed.label : undefined,
+    evaluations,
   };
 }

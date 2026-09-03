@@ -311,13 +311,25 @@ export const CampaignDetail: React.FC<CampaignDetailProps> = ({
 
         <Card className="p-5 space-y-4">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-            Delivery Rules
+            Delivery Rules & Safeguards
           </h2>
 
-          <div className="space-y-3 text-xs">
+          <div className="space-y-2.5 text-xs">
             <div className="flex justify-between pb-2 border-b border-border">
               <span className="text-muted-foreground">Trigger Event</span>
-              <span className="font-medium text-foreground">Successful single-domain search</span>
+              <span className="font-medium text-foreground">Search Completed</span>
+            </div>
+            <div className="flex justify-between pb-2 border-b border-border">
+              <span className="text-muted-foreground">Conditions Active</span>
+              <span className="font-medium text-foreground">
+                {campaign.conditions?.length || 3} rules
+              </span>
+            </div>
+            <div className="flex justify-between pb-2 border-b border-border">
+              <span className="text-muted-foreground">Exclusions Active</span>
+              <span className="font-medium text-foreground">
+                {campaign.exclusions?.filter((e) => e.enabled).length || 3} safeguards
+              </span>
             </div>
             <div className="flex justify-between pb-2 border-b border-border">
               <span className="text-muted-foreground">Audience</span>
@@ -328,8 +340,22 @@ export const CampaignDetail: React.FC<CampaignDetailProps> = ({
               <span className="font-medium text-foreground">Every eligible search</span>
             </div>
             <div className="flex justify-between pb-2 border-b border-border">
+              <span className="text-muted-foreground">Global Cooldown</span>
+              <span className="font-medium text-foreground">
+                {campaign.cooldown_seconds ? `${Math.round(campaign.cooldown_seconds / 3600)} hours` : 'None'}
+              </span>
+            </div>
+            <div className="flex justify-between pb-2 border-b border-border">
+              <span className="text-muted-foreground">Daily Limit</span>
+              <span className="font-medium text-foreground">
+                {campaign.max_prompts_per_day || 3} prompts / user
+              </span>
+            </div>
+            <div className="flex justify-between pb-2 border-b border-border">
               <span className="text-muted-foreground">Priority</span>
-              <span className="font-medium text-foreground capitalize">{campaign.priority}</span>
+              <span className="font-medium text-foreground capitalize">
+                {campaign.priority} · {campaign.priority === 'high' ? '100' : campaign.priority === 'normal' ? '50' : '10'}
+              </span>
             </div>
             <div className="flex justify-between pb-2 border-b border-border">
               <span className="text-muted-foreground">Schedule Start</span>
