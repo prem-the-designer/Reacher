@@ -183,13 +183,6 @@ export const ReachResultCard: React.FC<ReachResultCardProps> = ({ record, onRefr
           </div>
         ))}
       </dl>
-
-      {/* Footnote for unavailable metadata per §7 & §12 */}
-      <div className="pt-2 border-t border-border/50 text-center sm:text-left">
-        <p className="text-xs text-muted-foreground italic">
-          — means this value isn't available yet, not that anything failed.
-        </p>
-      </div>
     </Card>
   );
 };
