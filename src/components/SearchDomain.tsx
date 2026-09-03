@@ -63,6 +63,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   const [feedbackEligibility, setFeedbackEligibility] = useState<FeedbackEligibilityResult | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>('analyst-user');
   const [currentUserName, setCurrentUserName] = useState<string>('Analyst');
+  const isCardRefresh = useRef(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -72,6 +73,51 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
       }
     });
   }, []);
+
+  // Reactive feedback eligibility: guarantees feedback prompt appears on any successful single-domain result
+  useEffect(() => {
+    if (
+      (searchState.mode === 'found' || searchState.mode === 'success') &&
+      searchState.record &&
+      bulkDomains.length === 0 &&
+      !isCardRefresh.current
+    ) {
+      const searchId =
+        currentSearchId ||
+        `SRCH-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+      if (!currentSearchId) {
+        setCurrentSearchId(searchId);
+      }
+
+      checkFeedbackEligibility({
+        userId: currentUserId,
+        searchId,
+        domain: searchState.normalizedDomain || searchState.record.domain_name,
+        isSingleDomain: true,
+        searchSuccess: true,
+        reachAvailable: searchState.record.reach_value != null,
+      })
+        .then((eligibility) => {
+          setFeedbackEligibility(eligibility);
+        })
+        .catch(() => {});
+    } else if (
+      searchState.mode === 'idle' ||
+      searchState.mode === 'searching' ||
+      searchState.mode === 'not_found' ||
+      searchState.mode === 'error'
+    ) {
+      setFeedbackEligibility(null);
+    }
+  }, [
+    searchState.mode,
+    searchState.record,
+    bulkDomains.length,
+    currentUserId,
+    currentSearchId,
+    searchState.normalizedDomain,
+  ]);
 
   useEffect(() => {
     if (bulkDomains.length === 0 && pendingSearchQuery !== null) {
@@ -277,6 +323,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
       return;
     }
 
+    isCardRefresh.current = false;
     const norm = normalizeDomain(rawToSearch);
     if (!isValidDomain(norm)) {
       setValidationError(`${rawToSearch.trim()} isn't a valid domain. Try example.com.`);
@@ -321,22 +368,6 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           errorMessage: null,
           errorPhase: null,
         });
-
-        // Trigger feedback eligibility check for single-domain successful search (§14)
-        checkFeedbackEligibility({
-          userId: currentUserId,
-          searchId,
-          domain: norm,
-          isSingleDomain: bulkDomains.length === 0,
-          searchSuccess: true,
-          reachAvailable: typeof res.record.reach_value === 'number',
-        })
-          .then((eligibility) => {
-            setFeedbackEligibility(eligibility);
-          })
-          .catch(() => {
-            setFeedbackEligibility(null);
-          });
       } else {
         setSearchState({
           mode: 'not_found',
@@ -364,9 +395,6 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   // 2. Explicit "Get Reach" action per §2 Rule 2 & §6
   const handleGetReach = async () => {
     if (!searchState.normalizedDomain) return;
-
-    // Do NOT trigger feedback for API search or refresh (§14)
-    setFeedbackEligibility(null);
 
     const norm = searchState.normalizedDomain;
     setSearchState((prev) => ({
@@ -403,6 +431,12 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
         errorPhase: 'fetch' as ErrorPhase,
       }));
     }
+  };
+
+  const handleCardRefresh = () => {
+    isCardRefresh.current = true;
+    setFeedbackEligibility(null);
+    handleGetReach();
   };
 
   // 3. Retry flow per §10: Resumes the exact step that failed
@@ -815,7 +849,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
             <>
               <ReachResultCard
                 record={searchState.record}
-                onRefresh={handleGetReach}
+                onRefresh={handleCardRefresh}
               />
 
               {/* Analyst Feedback Component (§33 & §36) */}
@@ -826,7 +860,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                     campaign={feedbackEligibility.campaign}
                     version={feedbackEligibility.version}
                     searchId={currentSearchId || `SRCH-${Date.now()}`}
-                    domain={searchState.normalizedDomain}
+                    domain={searchState.normalizedDomain || searchState.record.domain_name}
                     userId={currentUserId}
                     userName={currentUserName}
                   />

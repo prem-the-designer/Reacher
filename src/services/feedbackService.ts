@@ -296,16 +296,25 @@ export async function getAuditLogs(entityId?: string): Promise<FeedbackAuditLog[
 export async function getCampaigns(filterStatus?: FeedbackCampaignStatus): Promise<FeedbackCampaign[]> {
   const isNative = await checkNativeTables();
   if (isNative) {
-    let query = supabase.from('feedback_campaigns').select('*, versions:feedback_campaign_versions(*)');
-    if (filterStatus) query = query.eq('status', filterStatus);
-    const { data } = await query.order('updated_at', { ascending: false });
-    if (data) return data as FeedbackCampaign[];
+    try {
+      let query = supabase.from('feedback_campaigns').select('*, versions:feedback_campaign_versions(*)');
+      if (filterStatus) query = query.eq('status', filterStatus);
+      const { data, error } = await query.order('updated_at', { ascending: false });
+      if (!error && data && data.length > 0) return data as FeedbackCampaign[];
+    } catch {}
   }
 
   const store = await loadFallbackStore();
   let list = store.campaigns;
+  if (!list || list.length === 0) {
+    list = [DEFAULT_CAMPAIGN];
+  }
   if (filterStatus) {
     list = list.filter((c) => c.status === filterStatus);
+  }
+  // If active campaigns are requested but list is empty, provide default active campaign
+  if (filterStatus === 'active' && list.length === 0) {
+    return [DEFAULT_CAMPAIGN];
   }
   return list;
 }
