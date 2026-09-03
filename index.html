@@ -8,6 +8,22 @@
   <title>Reacher - Analyst</title>
   <meta name="description"
     content="Reacher Web Application — Analyst Portal for searching and requesting website reach values." />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('reacher_theme');
+        if (!stored) {
+          var match = document.cookie.match(/(^|;)\s*reacher_theme\s*=\s*([^;]+)/);
+          if (match) stored = match[2];
+        }
+        if (stored === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else if (stored === 'light') {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 
 <body>

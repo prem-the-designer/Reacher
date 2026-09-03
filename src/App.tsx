@@ -7,16 +7,43 @@ import { AdminShell } from '@/components/admin/AdminShell';
 import { getUserProfile, signOut as supabaseSignOut } from '@/services/authService';
 import { supabase } from '@/lib/supabase';
 
+const getInitialDarkMode = (): boolean => {
+  try {
+    const stored = localStorage.getItem('reacher_theme');
+    if (stored === 'dark') return true;
+    if (stored === 'light') return false;
+
+    const cookieMatch = document.cookie.match(/(^|;)\s*reacher_theme\s*=\s*([^;]+)/);
+    if (cookieMatch) {
+      if (cookieMatch[2] === 'dark') return true;
+      if (cookieMatch[2] === 'light') return false;
+    }
+
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return true;
+    }
+  } catch {}
+  return false;
+};
+
 export function App() {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(getInitialDarkMode);
   const [authState, setAuthState] = useState<AuthState>('default');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
+      try {
+        localStorage.setItem('reacher_theme', 'dark');
+        document.cookie = 'reacher_theme=dark; path=/; max-age=31536000; SameSite=Lax';
+      } catch {}
     } else {
       document.documentElement.classList.remove('dark');
+      try {
+        localStorage.setItem('reacher_theme', 'light');
+        document.cookie = 'reacher_theme=light; path=/; max-age=31536000; SameSite=Lax';
+      } catch {}
     }
   }, [darkMode]);
 
