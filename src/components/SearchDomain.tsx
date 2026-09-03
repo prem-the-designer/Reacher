@@ -847,12 +847,7 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
         {(searchState.mode === 'found' || searchState.mode === 'success') &&
           searchState.record && (
             <>
-              <ReachResultCard
-                record={searchState.record}
-                onRefresh={handleCardRefresh}
-              />
-
-              {/* Analyst Feedback Component (§33 & §36) */}
+              {/* Analyst Feedback Component (Placed above reach result card for immediate visibility) */}
               {feedbackEligibility?.eligible &&
                 feedbackEligibility.campaign &&
                 feedbackEligibility.version && (
@@ -865,6 +860,11 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
                     userName={currentUserName}
                   />
                 )}
+
+              <ReachResultCard
+                record={searchState.record}
+                onRefresh={handleCardRefresh}
+              />
             </>
           )}
 

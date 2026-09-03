@@ -109,7 +109,7 @@ export const SearchFeedbackWidget: React.FC<SearchFeedbackWidgetProps> = ({
   return (
     <section
       aria-label="Search Result Feedback"
-      className="mt-4 rounded-xl border border-border bg-card/80 p-4 sm:p-5 shadow-xs transition-all"
+      className="mb-4 rounded-xl border border-border bg-card/80 p-4 sm:p-5 shadow-xs transition-all"
     >
       {/* Test Mode Banner */}
       {isTest && (
