@@ -4,7 +4,7 @@ import { getDashboardCards, getDashboardActivity } from '@/services/adminService
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
-import { RefreshCw, ArrowRight, Inbox, Users, CreditCard, UploadCloud } from 'lucide-react';
+import { RefreshCw, ArrowRight, Inbox, Users, CreditCard, UploadCloud, AlertCircle } from 'lucide-react';
 
 const CARD_ICONS: Record<string, React.ReactNode> = {
   'card-requests': <Inbox className="h-5 w-5" aria-hidden="true" />,
