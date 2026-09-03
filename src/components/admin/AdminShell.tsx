@@ -3,8 +3,8 @@ import type { User, AdminModule, Notification } from '@/types';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { Button } from '@/components/ui/Button';
-import { Menu, X } from 'lucide-react';
-import { getNotifications } from '@/services/adminService';
+import { Menu, X, AlertCircle } from 'lucide-react';
+import { getNotifications, getSettings } from '@/services/adminService';
 
 // ── Module pages (lazy imports replaced with direct imports for simplicity) ──
 
@@ -33,6 +33,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isCriticalCredit, setIsCriticalCredit] = useState(false);
 
   // Responsive: collapse at 1024px, drawer below 768px
   useEffect(() => {
@@ -50,12 +51,28 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load notifications
+  // Load notifications and credit state
   useEffect(() => {
-    const fetchNotifs = () => getNotifications().then(setNotifications).catch(() => {});
-    fetchNotifs();
-    window.addEventListener('reload-notifications', fetchNotifs);
-    return () => window.removeEventListener('reload-notifications', fetchNotifs);
+    const fetchGlobalState = async () => {
+      try {
+        const notifs = await getNotifications();
+        setNotifications(notifs);
+        
+        const settings = await getSettings();
+        const creds = settings.credits;
+        if (creds?.current_credits != null && creds?.critical_threshold != null) {
+          setIsCriticalCredit(creds.current_credits <= creds.critical_threshold);
+        } else {
+          setIsCriticalCredit(false);
+        }
+      } catch (e) {
+        // silently ignore error
+      }
+    };
+
+    fetchGlobalState();
+    window.addEventListener('reload-notifications', fetchGlobalState);
+    return () => window.removeEventListener('reload-notifications', fetchGlobalState);
   }, []);
 
   const handleNavigate = (module: AdminModule) => {
@@ -129,6 +146,13 @@ export const AdminShell: React.FC<AdminShellProps> = ({
           onNotificationsChange={setNotifications}
           onNavigate={handleNavigate}
         />
+
+        {isCriticalCredit && (
+          <div className="bg-destructive/10 border-b border-destructive/20 text-destructive text-sm font-medium px-6 py-3 flex items-center justify-center gap-2">
+            <AlertCircle className="w-5 h-5" aria-hidden="true" />
+            <span>Critical Credit Limit</span>
+          </div>
+        )}
 
         {/* Module content */}
         <main className="flex-1 overflow-y-auto p-6 sm:p-8 bg-background">
