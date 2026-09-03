@@ -17,6 +17,10 @@ import { Dialog, DialogFooter } from './ui/Dialog';
 import { BulkImportModal } from './BulkImportModal';
 import { formatNumber } from '@/lib/utils';
 import { Badge } from './ui/Badge';
+import { SearchFeedbackWidget } from './SearchFeedbackWidget';
+import { checkFeedbackEligibility } from '@/services/feedbackService';
+import type { FeedbackEligibilityResult } from '@/types/feedback';
+import { supabase } from '@/lib/supabase';
 
 interface SearchDomainProps {
   onSearchStateChange?: (state: SearchState) => void;
@@ -55,6 +59,19 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   const [isFetchingMissing, setIsFetchingMissing] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [pendingSearchQuery, setPendingSearchQuery] = useState<string | null>(null);
+  const [currentSearchId, setCurrentSearchId] = useState<string | null>(null);
+  const [feedbackEligibility, setFeedbackEligibility] = useState<FeedbackEligibilityResult | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>('analyst-user');
+  const [currentUserName, setCurrentUserName] = useState<string>('Analyst');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setCurrentUserId(user.id);
+        setCurrentUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Analyst');
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (bulkDomains.length === 0 && pendingSearchQuery !== null) {
@@ -267,6 +284,10 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
     }
 
     setValidationError(null);
+    const searchId = `SRCH-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    setCurrentSearchId(searchId);
+    setFeedbackEligibility(null);
+
     setSearchState({
       mode: 'searching',
       inputDomain: rawToSearch,
@@ -300,6 +321,22 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           errorMessage: null,
           errorPhase: null,
         });
+
+        // Trigger feedback eligibility check for single-domain successful search (§14)
+        checkFeedbackEligibility({
+          userId: currentUserId,
+          searchId,
+          domain: norm,
+          isSingleDomain: bulkDomains.length === 0,
+          searchSuccess: true,
+          reachAvailable: typeof res.record.reach_value === 'number',
+        })
+          .then((eligibility) => {
+            setFeedbackEligibility(eligibility);
+          })
+          .catch(() => {
+            setFeedbackEligibility(null);
+          });
       } else {
         setSearchState({
           mode: 'not_found',
@@ -327,6 +364,9 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
   // 2. Explicit "Get Reach" action per §2 Rule 2 & §6
   const handleGetReach = async () => {
     if (!searchState.normalizedDomain) return;
+
+    // Do NOT trigger feedback for API search or refresh (§14)
+    setFeedbackEligibility(null);
 
     const norm = searchState.normalizedDomain;
     setSearchState((prev) => ({
@@ -772,10 +812,26 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
         {/* 5. Success / 7. Found State: Result Card (§6 & §7) */}
         {(searchState.mode === 'found' || searchState.mode === 'success') &&
           searchState.record && (
-            <ReachResultCard
-              record={searchState.record}
-              onRefresh={handleGetReach}
-            />
+            <>
+              <ReachResultCard
+                record={searchState.record}
+                onRefresh={handleGetReach}
+              />
+
+              {/* Analyst Feedback Component (§33 & §36) */}
+              {feedbackEligibility?.eligible &&
+                feedbackEligibility.campaign &&
+                feedbackEligibility.version && (
+                  <SearchFeedbackWidget
+                    campaign={feedbackEligibility.campaign}
+                    version={feedbackEligibility.version}
+                    searchId={currentSearchId || `SRCH-${Date.now()}`}
+                    domain={searchState.normalizedDomain}
+                    userId={currentUserId}
+                    userName={currentUserName}
+                  />
+                )}
+            </>
           )}
 
         {searchState.mode === 'error' && (

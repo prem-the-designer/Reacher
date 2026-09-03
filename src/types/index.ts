@@ -77,7 +77,10 @@ export type AdminModule =
   | 'import-export'
   | 'users'
   | 'logs'
-  | 'settings';
+  | 'settings'
+  | 'feedback';
+
+export * from './feedback';
 
 // ── Admin Users ──────────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import { ImportExportModule } from './ImportExportModule';
 import { UsersModule } from './UsersModule';
 import { LogsModule } from './LogsModule';
 import { SettingsModule } from './SettingsModule';
+import { FeedbackModule } from './feedback/FeedbackModule';
 import { SearchDomain } from '@/components/SearchDomain';
 
 interface AdminShellProps {
@@ -177,6 +178,9 @@ export const AdminShell: React.FC<AdminShellProps> = ({
             )}
             {activeModule === 'settings' && (
               <SettingsModule />
+            )}
+            {activeModule === 'feedback' && (
+              <FeedbackModule onNavigateToSearch={() => handleNavigate('search')} />
             )}
           </div>
         </main>

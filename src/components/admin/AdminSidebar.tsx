@@ -8,6 +8,7 @@ import {
   Users,
   ScrollText,
   Settings,
+  MessageSquare,
 } from 'lucide-react';
 
 interface NavItem {
@@ -20,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { module: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4 shrink-0" /> },
   { module: 'search', label: 'Search Domain', icon: <Search className="h-4 w-4 shrink-0" /> },
   // { module: 'user-activity', label: 'User Activity', icon: <Activity className="h-4 w-4 shrink-0" /> },
+  { module: 'feedback', label: 'Feedback', icon: <MessageSquare className="h-4 w-4 shrink-0" /> },
   { module: 'import-export', label: 'Import / Export', icon: <Upload className="h-4 w-4 shrink-0" /> },
   { module: 'users', label: 'Users', icon: <Users className="h-4 w-4 shrink-0" /> },
   { module: 'logs', label: 'Logs', icon: <ScrollText className="h-4 w-4 shrink-0" /> },

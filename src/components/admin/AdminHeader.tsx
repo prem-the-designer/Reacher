@@ -14,6 +14,7 @@ const MODULE_TITLES: Record<AdminModule, string> = {
   users: 'Users',
   logs: 'Logs',
   settings: 'Settings',
+  feedback: 'Feedback',
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
