@@ -904,8 +904,11 @@ export async function checkFeedbackEligibility(
     return { eligible: false, reason: 'Feedback already submitted for this search' };
   }
 
-  // 5. Frequency & Cooldown Check
-  if (settings.max_prompts_per_day > 0) {
+  // 5. Frequency & Cooldown Check (only when not set to every_eligible_search)
+  if (
+    settings.max_prompts_per_day > 0 &&
+    eligibleCampaign.frequency_rule !== 'every_eligible_search'
+  ) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayIso = today.toISOString();

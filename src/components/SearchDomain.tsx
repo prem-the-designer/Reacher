@@ -18,7 +18,7 @@ import { BulkImportModal } from './BulkImportModal';
 import { formatNumber } from '@/lib/utils';
 import { Badge } from './ui/Badge';
 import { SearchFeedbackWidget } from './SearchFeedbackWidget';
-import { checkFeedbackEligibility } from '@/services/feedbackService';
+import { checkFeedbackEligibility, DEFAULT_CAMPAIGN } from '@/services/feedbackService';
 import type { FeedbackEligibilityResult } from '@/types/feedback';
 import { supabase } from '@/lib/supabase';
 
@@ -848,18 +848,16 @@ export const SearchDomain: React.FC<SearchDomainProps> = ({ onSearchStateChange,
           searchState.record && (
             <>
               {/* Analyst Feedback Component (Placed above reach result card for immediate visibility) */}
-              {feedbackEligibility?.eligible &&
-                feedbackEligibility.campaign &&
-                feedbackEligibility.version && (
-                  <SearchFeedbackWidget
-                    campaign={feedbackEligibility.campaign}
-                    version={feedbackEligibility.version}
-                    searchId={currentSearchId || `SRCH-${Date.now()}`}
-                    domain={searchState.normalizedDomain || searchState.record.domain_name}
-                    userId={currentUserId}
-                    userName={currentUserName}
-                  />
-                )}
+              {(feedbackEligibility === null || feedbackEligibility?.eligible) && (
+                <SearchFeedbackWidget
+                  campaign={feedbackEligibility?.campaign || DEFAULT_CAMPAIGN}
+                  version={feedbackEligibility?.version || DEFAULT_CAMPAIGN.versions?.[0]!}
+                  searchId={currentSearchId || `SRCH-${Date.now()}`}
+                  domain={searchState.normalizedDomain || searchState.record.domain_name}
+                  userId={currentUserId}
+                  userName={currentUserName}
+                />
+              )}
 
               <ReachResultCard
                 record={searchState.record}
